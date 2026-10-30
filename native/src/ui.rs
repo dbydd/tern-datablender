@@ -1499,6 +1499,7 @@ impl App {
                     "gradient" => (Operation::Gradient, 1, "Gradient".into()),
                     "vector" => (Operation::Vector, 2, "Vector".into()),
                     "magnitude" => (Operation::Magnitude, 1, "Magnitude".into()),
+                    "time_shift" => (Operation::TimeShift { steps: 1 }, 1, "t+n".into()),
                     _ => (Operation::Source { variable: value.into() }, 0, value.into()),
                 };
                 let mut inputs = vec![None; count];
@@ -1537,6 +1538,7 @@ impl App {
                 else { match &mut node.operation {
                     Operation::Gaussian { sigma } => *sigma = (*sigma + delta).clamp(0.1, 64.0),
                     Operation::Scale { factor, offset } => if key == "factor" { *factor += delta } else { *offset += delta },
+                    Operation::TimeShift { steps } => if let Some(next) = steps.checked_add(delta as i64) { *steps = next },
                     _ => {},
                 } }
             },
@@ -2074,7 +2076,7 @@ impl App {
     fn graph_library(&self) -> Node<Msg> {
         let mut panel = div("db-ops").key("operation-library")
             .child(div("db-panel-h").child(ui::text::<Msg>("Add operation")));
-        for (kind, name) in [("gaussian", "Gaussian blur"), ("convolve", "Mean convolution"), ("difference", "Difference · A − B"), ("scale", "Scale & offset"), ("gradient", "Gradient"), ("vector", "Vector · U + V"), ("magnitude", "Magnitude")] {
+        for (kind, name) in [("gaussian", "Gaussian blur"), ("convolve", "Mean convolution"), ("difference", "Difference · A − B"), ("scale", "Scale & offset"), ("gradient", "Gradient"), ("vector", "Vector · U + V"), ("magnitude", "Magnitude"), ("time_shift", "t+n · Time shift")] {
             panel = panel.child(btn(name, "graph-add", Some(kind), "db-btn db-op"));
         }
         panel.child(div("db-panel-h").child(ui::text::<Msg>("Export")))
@@ -2106,6 +2108,8 @@ impl App {
                     Operation::Gaussian { sigma } => parameter("sigma",format!("σ {sigma:.1} cells"),0.1),
                     Operation::Scale { factor,offset } => { parameter("factor",format!("Factor {factor:.2}"),0.1); parameter("offset",format!("Offset {offset:.2}"),0.1); },
                     Operation::Convolve { side,.. } => { card = card.child(hint(format!("{side} × {side} mean kernel"))); },
+                    Operation::TimeShift { steps } => { parameter("steps",format!("Shift {steps:+} frames"),1.0);
+                        card = card.child(hint("Positive n shows a later frame, negative n an earlier one. Nested shifts add their offsets. Frames outside the series show as missing.")); },
                     _ => {},
                 }
                 card = card.child(btn(if self.connect_from == Some(node.id) { "Output selected →" } else { "Output →" },"graph-output",Some(&id),"ng-port output"))
