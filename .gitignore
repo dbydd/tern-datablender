@@ -1,0 +1,7 @@
+target/
+dist/
+bin/
+context_notes
+.omp/
+data/sample_ocean.png
+data/sample_ocean.py

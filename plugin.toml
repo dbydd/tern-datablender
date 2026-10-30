@@ -1,0 +1,7 @@
+schema = 1
+id = "tern-netcdf"
+name = "NetCDF"
+version = "0.3.0"
+description = "原生 NetCDF 场查看、节点图组合处理与多变量混合混合图层。"
+icon = "file"
+window = "window.luau"

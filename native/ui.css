@@ -1,0 +1,785 @@
+/* Data Blender: a screen surface. Tern confines this sheet to the surface,
+   so selectors stay local. Sizes avoid `ch`; grid column widths are node
+   min/max props. */
+
+.sf-main {
+	display: flex;
+	flex-direction: column;
+}
+
+.db-app {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 8px 10px 4px;
+	flex: 1 1 0;
+	min-height: 0;
+	box-sizing: border-box;
+}
+
+.db-head {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex-grow: 0;
+	flex-shrink: 0;
+}
+
+.db-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.db-brand {
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: var(--sf-c-accent);
+	white-space: nowrap;
+}
+
+.db-path {
+	color: var(--sf-c-muted);
+	font-size: 0.9em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* The field workspace: two thirds of the height for the two images, one
+   third for the operation tree and the pipeline. */
+
+.db-workspace {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	flex: 1 1 auto;
+	flex-shrink: 1;
+	min-height: 0;
+}
+
+.db-stage {
+	display: flex;
+	flex-direction: row;
+	align-items: stretch;
+	gap: 8px;
+	flex: 4 1 0;
+	flex-shrink: 1;
+	flex-basis: 0;
+	min-height: 0;
+}
+
+.db-bottom {
+	display: flex;
+	flex-direction: row;
+	align-items: stretch;
+	gap: 8px;
+	flex: 1.2 1 0;
+	flex-shrink: 1;
+	flex-basis: 0;
+	min-height: 0;
+}
+
+.db-side {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	flex: 0 0 16em;
+	max-width: 18em;
+	min-width: 13em;
+	overflow: auto;
+	padding: 5px 6px;
+	border-radius: 7px;
+	background: var(--sf-tint-cardBg, rgba(127, 127, 127, 0.05));
+	box-shadow: inset 0 0 0 1px var(--sf-l2, rgba(127, 127, 127, 0.22));
+}
+
+.db-side-h {
+	font-size: 0.8em;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--sf-c-muted);
+	margin-bottom: 2px;
+}
+
+.db-side-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-height: 0;
+}
+
+.db-view {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex-grow: 1;
+	flex-shrink: 1;
+	flex-basis: 0;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	padding: 5px 6px 9px;
+	border-radius: 7px;
+	background: var(--sf-tint-cardBg, rgba(127, 127, 127, 0.04));
+	box-shadow: inset 0 0 0 1px var(--sf-l2, rgba(127, 127, 127, 0.22));
+}
+
+.db-view-h {
+	display: flex;
+	flex-direction: row;
+	align-items: baseline;
+	gap: 6px;
+	flex-grow: 0;
+	flex-shrink: 0;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.db-view-canvas {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 1 1 0;
+	min-height: 4em;
+	overflow: hidden;
+	border-radius: 6px;
+	background: var(--sf-tint-cardBg, rgba(127, 127, 127, 0.06));
+	box-shadow: inset 0 0 0 1px var(--sf-l2, rgba(127, 127, 127, 0.18));
+}
+
+.db-view-controls {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	flex: 0 0 auto;
+	font-size: 0.88em;
+	padding-bottom: 3px;
+}
+
+.db-view-controls .db-row,
+.db-view-controls .db-timeline {
+	flex-wrap: wrap;
+}
+
+.db-canvas {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	padding: 4px;
+	box-sizing: border-box;
+}
+
+.db-pan-x,
+.db-pan-y,
+.db-zoom {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	transform-origin: center center;
+	max-width: 100%;
+	max-height: 100%;
+}
+
+.db-canvas .sf-image,
+.db-canvas img {
+	position: relative;
+	width: auto;
+	height: 100%;
+	max-width: 100%;
+	max-height: 100%;
+	border-radius: 4px;
+}
+
+/* Click picking: 12 x 12 transparent cells over the picture. */
+.db-picks {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	grid-template-columns: repeat(12, minmax(0, 1fr));
+	grid-template-rows: repeat(12, minmax(0, 1fr));
+}
+
+.db-pick {
+	cursor: crosshair;
+}
+
+.db-pick:hover {
+	background: rgba(127, 127, 127, 0.18);
+}
+
+.db-series-wrap {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	flex-grow: 0;
+	flex-shrink: 0;
+	min-height: 3.5em;
+}
+
+.db-series-h {
+	display: flex;
+	flex-direction: row;
+	align-items: baseline;
+	gap: 6px;
+	font-size: 0.82em;
+	overflow: hidden;
+}
+
+.db-series {
+	display: flex;
+	flex-direction: row;
+	align-items: flex-end;
+	gap: 0;
+	overflow: hidden;
+}
+
+.db-series-cell {
+	flex-grow: 1;
+	flex-shrink: 1;
+	flex-basis: 0;
+	min-width: 0;
+	text-align: center;
+	line-height: 1;
+	cursor: pointer;
+	color: var(--sf-c-accent);
+}
+
+.db-series-cell:hover {
+	background: var(--sf-tint-selectedBg, rgba(127, 127, 127, 0.16));
+}
+
+.db-series-empty {
+	font-size: 0.82em;
+	min-height: 3.5em;
+}
+
+.db-wait {
+	color: var(--sf-c-muted);
+	font-size: 0.9em;
+	padding: 2em 1em;
+	text-align: center;
+}
+
+/* Pan and zoom are classes, never inline styles. One class per axis, nested,
+   so a pair composes without a rule per combination. */
+
+.db-px0 { transform: translateX(0); }
+.db-px1 { transform: translateX(32px); }
+.db-px2 { transform: translateX(64px); }
+.db-px3 { transform: translateX(96px); }
+.db-px4 { transform: translateX(128px); }
+.db-px5 { transform: translateX(160px); }
+.db-px6 { transform: translateX(192px); }
+.db-px7 { transform: translateX(224px); }
+.db-px8 { transform: translateX(256px); }
+.db-pxm1 { transform: translateX(-32px); }
+.db-pxm2 { transform: translateX(-64px); }
+.db-pxm3 { transform: translateX(-96px); }
+.db-pxm4 { transform: translateX(-128px); }
+.db-pxm5 { transform: translateX(-160px); }
+.db-pxm6 { transform: translateX(-192px); }
+.db-pxm7 { transform: translateX(-224px); }
+.db-pxm8 { transform: translateX(-256px); }
+
+.db-py0 { transform: translateY(0); }
+.db-py1 { transform: translateY(32px); }
+.db-py2 { transform: translateY(64px); }
+.db-py3 { transform: translateY(96px); }
+.db-py4 { transform: translateY(128px); }
+.db-py5 { transform: translateY(160px); }
+.db-py6 { transform: translateY(192px); }
+.db-py7 { transform: translateY(224px); }
+.db-py8 { transform: translateY(256px); }
+.db-pym1 { transform: translateY(-32px); }
+.db-pym2 { transform: translateY(-64px); }
+.db-pym3 { transform: translateY(-96px); }
+.db-pym4 { transform: translateY(-128px); }
+.db-pym5 { transform: translateY(-160px); }
+.db-pym6 { transform: translateY(-192px); }
+.db-pym7 { transform: translateY(-224px); }
+.db-pym8 { transform: translateY(-256px); }
+
+.db-z1 { transform: scale(0.5); }
+.db-z2 { transform: scale(0.75); }
+.db-z3 { transform: scale(1); }
+.db-z4 { transform: scale(1.5); }
+.db-z5 { transform: scale(2); }
+.db-z6 { transform: scale(3); }
+.db-z7 { transform: scale(4); }
+
+.db-timeline {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+
+.db-item,
+.db-step {
+	display: flex;
+	flex-direction: row;
+	align-items: baseline;
+	gap: 6px;
+	padding: 1px 4px;
+	border-radius: 4px;
+	cursor: pointer;
+	min-width: 0;
+}
+
+.db-item:hover,
+.db-step:hover {
+	background: var(--sf-tint-selectedBg, rgba(127, 127, 127, 0.1));
+}
+
+.db-item.on {
+	background: var(--sf-tint-selectedBg, rgba(127, 127, 127, 0.14));
+	box-shadow: inset 2px 0 0 var(--sf-c-accent);
+}
+
+.db-step {
+	border: 1px solid var(--sf-l2, rgba(127, 127, 127, 0.28));
+	font-size: 0.84em;
+}
+
+.db-item .sf-text,
+.db-step .sf-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.db-detail {
+	color: var(--sf-c-muted);
+	font-size: 0.84em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.db-detail.db-err {
+	color: var(--sf-c-error);
+}
+
+.db-hint {
+	color: var(--sf-c-muted);
+	font-size: 0.82em;
+	line-height: 1.4;
+	white-space: normal;
+}
+
+.db-btn {
+	padding: 1px 8px;
+	border-radius: 5px;
+	border: 1px solid var(--sf-l2, rgba(127, 127, 127, 0.3));
+	background: transparent;
+	color: inherit;
+	font-size: 0.88em;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.db-btn:hover {
+	border-color: var(--sf-c-accent);
+}
+
+.db-btn.on {
+	border-color: var(--sf-c-accent);
+	color: var(--sf-c-accent);
+}
+
+.db-btn.primary {
+	border-color: var(--sf-c-accent);
+	background: var(--sf-tint-selectedBg, rgba(127, 127, 127, 0.12));
+}
+
+.db-op {
+	text-align: left;
+	width: 100%;
+}
+
+.db-mini {
+	padding: 0 5px;
+	border-radius: 4px;
+	border: 1px solid var(--sf-l2, rgba(127, 127, 127, 0.3));
+	background: transparent;
+	color: var(--sf-c-muted);
+	font-size: 0.76em;
+	cursor: pointer;
+}
+
+.db-btns {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 4px;
+	align-items: center;
+}
+
+.db-chip {
+	display: inline-flex;
+	flex-direction: row;
+	gap: 5px;
+	align-items: baseline;
+	padding: 1px 6px;
+	border-radius: 5px;
+	background: var(--sf-tint-selectedBg, rgba(127, 127, 127, 0.1));
+	font-size: 0.82em;
+	white-space: nowrap;
+	max-width: 100%;
+	overflow: hidden;
+}
+
+.db-chip .db-k {
+	color: var(--sf-c-muted);
+}
+
+.db-chip .db-v {
+	font-variant-numeric: tabular-nums;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* The lower third: predefined operations on the left, the script pipeline
+   and its applied steps on the right. */
+
+.db-ops {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex: 0 0 17em;
+	max-width: 17em;
+	min-width: 0;
+	overflow: auto;
+	padding: 5px 6px;
+	border-radius: 7px;
+	background: var(--sf-tint-cardBg, rgba(127, 127, 127, 0.05));
+	box-shadow: inset 0 0 0 1px var(--sf-l2, rgba(127, 127, 127, 0.22));
+}
+
+.db-ops-h {
+	font-size: 0.8em;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--sf-c-muted);
+}
+
+.db-op-group {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 2px 0;
+}
+
+.db-op-row {
+	display: flex;
+	flex-direction: row;
+	align-items: baseline;
+	gap: 4px;
+	font-size: 0.85em;
+}
+
+.db-op-row .sf-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.db-pipe {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex-grow: 1;
+	flex-shrink: 1;
+	flex-basis: 0;
+	min-width: 0;
+	min-height: 0;
+	padding: 5px 6px;
+	border-radius: 7px;
+	background: var(--sf-tint-cardBg, rgba(127, 127, 127, 0.04));
+	box-shadow: inset 0 0 0 1px var(--sf-l2, rgba(127, 127, 127, 0.22));
+}
+
+.db-pipe-h {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	flex-grow: 0;
+	flex-shrink: 0;
+}
+
+.db-pipe .sf-editor {
+	flex-grow: 1;
+	flex-shrink: 1;
+	flex-basis: 0;
+	min-height: 5em;
+	font-family: var(--sf-font-mono, monospace);
+}
+
+.db-main-col {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	flex-grow: 1;
+	flex-shrink: 1;
+	flex-basis: 0;
+	min-width: 0;
+	min-height: 0;
+}
+
+.db-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	padding: 5px 7px;
+	border-radius: 7px;
+	background: var(--sf-tint-cardBg, rgba(127, 127, 127, 0.05));
+	box-shadow: inset 0 0 0 1px var(--sf-l2, rgba(127, 127, 127, 0.22));
+}
+
+.db-panel-h {
+	font-size: 0.8em;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--sf-c-muted);
+}
+
+/* Modern Visual Node Graph Canvas */
+.ng-canvas {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 10px;
+	overflow: auto;
+	padding: 8px 4px;
+	flex: 1 1 0;
+	align-content: flex-start;
+}
+
+.ng-node {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	width: 17em;
+	max-width: 20em;
+	padding: 8px 10px;
+	border-radius: 8px;
+	background: var(--sf-tint-cardBg, rgba(127, 127, 127, 0.07));
+	border: 1px solid var(--sf-l2, rgba(127, 127, 127, 0.25));
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+	transition: all 0.15s ease;
+}
+
+.ng-node:hover {
+	border-color: var(--sf-l3, rgba(127, 127, 127, 0.4));
+	background: var(--sf-tint-cardBg, rgba(127, 127, 127, 0.09));
+}
+
+.ng-node.on {
+	border-color: var(--sf-c-accent);
+	box-shadow: 0 0 0 1px var(--sf-c-accent), 0 3px 12px rgba(0, 0, 0, 0.2);
+}
+
+.ng-title {
+	font-weight: 600;
+	font-size: 0.9em;
+	text-align: left;
+	border: none;
+	background: transparent;
+	color: var(--sf-c-accent);
+	cursor: pointer;
+	padding: 0;
+	letter-spacing: 0.02em;
+}
+
+.ng-port {
+	display: flex;
+	align-items: center;
+	padding: 3px 8px;
+	border-radius: 5px;
+	border: 1px solid var(--sf-l2, rgba(127, 127, 127, 0.28));
+	background: var(--sf-tint-cardBg, rgba(127, 127, 127, 0.05));
+	font-size: 0.82em;
+	cursor: pointer;
+	text-align: left;
+}
+
+.ng-port.input {
+	color: var(--sf-c-accent);
+}
+
+.ng-port.output {
+	color: #10b981;
+	justify-content: flex-end;
+	text-align: right;
+	font-weight: 500;
+}
+
+.ng-port:hover {
+	border-color: var(--sf-c-accent);
+	background: var(--sf-tint-selectedBg, rgba(127, 127, 127, 0.15));
+}
+
+/* Layer stack & multi-variable blending controls */
+.ng-layers {
+	flex: 0 0 18em;
+	max-width: 18em;
+}
+
+.ng-layer {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	border: 1px solid var(--sf-l2, rgba(127, 127, 127, 0.2));
+	background: var(--sf-tint-cardBg, rgba(127, 127, 127, 0.05));
+	margin-bottom: 6px;
+}
+
+.ng-layer-head {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	min-width: 0;
+}
+
+.ng-layer-title {
+	font-weight: 600;
+	font-size: 0.9em;
+	color: inherit;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* Source variable card styling: prominent name, secondary metadata */
+.db-var-card {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	background: var(--sf-tint-cardBg, rgba(127, 127, 127, 0.05));
+	border: 1px solid var(--sf-l2, rgba(127, 127, 127, 0.2));
+	cursor: pointer;
+	min-width: 0;
+	transition: all 0.15s ease;
+}
+
+.db-var-card:hover {
+	background: var(--sf-tint-selectedBg, rgba(127, 127, 127, 0.1));
+	border-color: var(--sf-l3, rgba(127, 127, 127, 0.35));
+}
+
+.db-var-card.on {
+	background: var(--sf-tint-selectedBg, rgba(127, 127, 127, 0.14));
+	border-color: var(--sf-c-accent);
+	box-shadow: inset 2px 0 0 var(--sf-c-accent);
+}
+
+.db-var-row-top {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	min-width: 0;
+}
+
+.db-var-name {
+	font-weight: 600;
+	font-size: 0.95em;
+	color: inherit;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.db-var-card.on .db-var-name,
+.db-var-card:hover .db-var-name {
+	color: var(--sf-c-accent);
+}
+
+.db-add-btn {
+	flex-shrink: 0;
+	white-space: nowrap;
+	font-weight: 500;
+	padding: 1px 6px;
+}
+
+.db-var-tags {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 2px;
+	min-width: 0;
+}
+
+.db-var-tag {
+	display: inline-flex;
+	flex-direction: row;
+	align-items: baseline;
+	gap: 4px;
+	padding: 1px 5px;
+	border-radius: 4px;
+	background: var(--sf-tint-selectedBg, rgba(127, 127, 127, 0.08));
+	border: 1px solid var(--sf-l2, rgba(127, 127, 127, 0.18));
+	font-size: 0.74em;
+	white-space: nowrap;
+}
+
+.db-var-tag.unit {
+	background: transparent;
+	border-color: transparent;
+	color: var(--sf-c-muted);
+	padding: 1px 2px;
+}
+
+.db-tag-name {
+	color: var(--sf-c-muted);
+	font-weight: 500;
+}
+
+.db-tag-val {
+	color: inherit;
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+}
+
+.ng-maps,
+.ng-opacity {
+	display: flex;
+	flex-direction: row;
+	gap: 3px;
+	flex-wrap: wrap;
+}
+
+.ng-maps .db-mini.on,
+.ng-opacity .db-mini.on {
+	border-color: var(--sf-c-accent);
+	color: var(--sf-c-accent);
+	background: var(--sf-tint-selectedBg, rgba(127, 127, 127, 0.15));
+	font-weight: 600;
+}
+

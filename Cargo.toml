@@ -1,0 +1,33 @@
+[package]
+name = "tern-netcdf"
+version = "0.3.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+
+[lib]
+name = "tern_netcdf"
+path = "native/src/lib.rs"
+
+[[bin]]
+name = "tern-netcdf"
+path = "native/src/main.rs"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.23"
+clap = { version = "4", features = ["derive"] }
+netcdf = { version = "0.12.1", default-features = false, features = ["static"] }
+png = "0.18"
+rayon = "1.11"
+rhai = { version = "1.24", features = ["sync"] }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+tern-sdk = "0.1.0"
+
+[profile.release]
+lto = "thin"
+strip = true
+
+[profile.dev]
+debug = 0
