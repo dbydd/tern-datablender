@@ -51,6 +51,7 @@ pub struct VectorGrid { pub u: Arc<Grid>, pub v: Arc<Grid> }
 pub enum ScalarNode {
     Source { variable: String },
     Gaussian { input: Arc<ScalarNode>, sigma: f64 },
+    TimeShift { input: Arc<ScalarNode>, steps: i64 },
     Convolve { input: Arc<ScalarNode>, kernel: Vec<f64>, side: usize },
     Difference { left: Arc<ScalarNode>, right: Arc<ScalarNode> },
     Scale { input: Arc<ScalarNode>, factor: f64, offset: f64 },
@@ -114,6 +115,7 @@ pub struct GraphNode {
 pub enum Operation {
     Source { variable: String },
     Gaussian { sigma: f64 },
+    TimeShift { steps: i64 },
     Convolve { kernel: Vec<f64>, side: usize },
     Difference,
     Scale { factor: f64, offset: f64 },
@@ -162,6 +164,7 @@ impl NodeGraph {
             }
             let field = match &node.operation {
                 Operation::Source { variable } => FieldNode::Scalar(Arc::new(ScalarNode::Source { variable: variable.clone() })),
+                Operation::TimeShift { steps } => FieldNode::Scalar(Arc::new(ScalarNode::TimeShift { input: scalar(input(0)?)?, steps: *steps })),
                 Operation::Gaussian { sigma } => {
                     ensure!(sigma.is_finite() && *sigma > 0.0 && *sigma <= 64.0, "Gaussian sigma must be in (0, 64]");
                     FieldNode::Scalar(Arc::new(ScalarNode::Gaussian { input: scalar(input(0)?)?, sigma: *sigma }))

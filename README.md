@@ -41,8 +41,12 @@ tern plugin list                      # 显示 tern-netcdf ready
 1. **输入变量列表（左侧）**：列出数据集变量。每个变量卡片独立展示名称、维度标签（如 `time: 365`、`latitude: 121`）和单位，标签自适应换行，点击 `+ Node` 直接将该变量作为源节点添加到处理节点图中。
 2. **双场对比区（中间）**：左图显示原始场，右图显示经节点图处理与图层合成后的复合场。两图均覆盖 12×12 点击探针网格与时间序列点选条。
 3. **多图层混合栈（右侧）**：支持将任意节点加入图层。每个图层支持独立配置色标（Viridis、Thermal / Inferno、Diverging / RdBu_r、Gray）、透明度（0%、25%、50%、75%、100% 及 ±5% 微调）、显隐切换以及上下图层移序。多变量在像素级按 Alpha 混合呈现。
-4. **操作算子库（底部左侧）**：提供 `Gaussian blur`、`Mean convolution`、`Difference (A − B)`、`Scale & offset`、`Gradient`、`Vector (U + V)` 和 `Magnitude` 算子节点，以及导出面板。
+4. **操作算子库（底部左侧）**：提供 `Gaussian blur`、`Mean convolution`、`t+n · Time shift`、`Difference (A − B)`、`Scale & offset`、`Gradient`、`Vector (U + V)` 和 `Magnitude` 算子节点，以及导出面板。
 5. **节点图画布（底部右侧）**：免代码的流式节点工作台。每个节点具备清晰的输入端口（`A ←`、`B ←`）与输出端口（`Output →`），支持参数微调步进（如高斯 $\sigma$、缩放因数与偏置）与连线环路自动检测。
+
+### 时序差分
+
+`t+n` 节点将输入场的时间索引平移 n 帧，默认 n=1，可用 − / + 调整为正数、零或负数。将平移后的场接到 `Difference` 的 A 输入，原场接到 B 输入，即得到 `A(t+n) − A(t)`。n 表示数据帧数。超出时间范围的结果为缺测值。时间维必须作为帧维度，时间平移保留深度等其他切片索引。脚本使用 `time_shift(field("uo"), 1)`，Python 导出保留相同语义。
 
 ### Python 代码导出
 

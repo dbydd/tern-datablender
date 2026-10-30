@@ -39,6 +39,7 @@ pub fn compile(script: &str) -> Result<Scene> {
     engine.register_type_with_name::<Scalar>("ScalarField");
     engine.register_type_with_name::<Vector>("VectorField");
     engine.register_fn("field", |name: &str| Scalar(Arc::new(ScalarNode::Source { variable: name.into() })));
+    engine.register_fn("time_shift", |input: Scalar, steps: INT| Scalar(Arc::new(ScalarNode::TimeShift { input: input.0, steps })));
     engine.register_fn("gaussian", |input: Scalar, sigma: FLOAT| -> ScriptResult<Scalar> {
         if !sigma.is_finite() || sigma <= 0.0 || sigma > 64.0 { return Err("Gaussian sigma must be in (0, 64] cells".into()); }
         Ok(Scalar(Arc::new(ScalarNode::Gaussian { input: input.0, sigma })))
@@ -131,30 +132,38 @@ impl Evaluator {
         self.cache.insert(key, value);
     }
     pub fn scalar(&mut self, node: &ScalarNode, data: &Dataset, slice: &Slice, cancel: &Cancellation) -> Result<Arc<Grid>> {
+        self.scalar_at(node, data, slice, cancel, 0)
+    }
+    fn scalar_at(&mut self, node: &ScalarNode, data: &Dataset, slice: &Slice, cancel: &Cancellation, steps: i64) -> Result<Arc<Grid>> {
         cancel.check()?;
-        let key = serde_json::to_string(&("scalar", slice, node))?;
+        if let ScalarNode::TimeShift { input, steps: offset } = node {
+            let shifted = steps.checked_add(*offset).ok_or_else(|| anyhow!("Time shift exceeds the supported integer range"))?;
+            return self.scalar_at(input, data, slice, cancel, shifted);
+        }
+        let key = serde_json::to_string(&("scalar", slice, node, steps))?;
         if let Some(Cached::Scalar(grid)) = self.cache.get(&key) { return Ok(grid.clone()); }
         let grid = match node {
-            ScalarNode::Source { variable } => data.read(variable, slice)?,
+            ScalarNode::Source { variable } => data.read_time_shift(variable, slice, steps)?,
+            ScalarNode::TimeShift { .. } => unreachable!(),
             ScalarNode::Gaussian { input, sigma } => {
-                let input = self.scalar(input, data, slice, cancel)?;
+                let input = self.scalar_at(input, data, slice, cancel, steps)?;
                 Arc::new(kernels::gaussian(&input, *sigma, cancel)?)
             },
             ScalarNode::Convolve { input, kernel, side } => {
-                let input = self.scalar(input, data, slice, cancel)?;
+                let input = self.scalar_at(input, data, slice, cancel, steps)?;
                 Arc::new(kernels::convolve(&input, kernel, *side, cancel)?)
             },
             ScalarNode::Difference { left, right } => {
-                let left = self.scalar(left, data, slice, cancel)?;
-                let right = self.scalar(right, data, slice, cancel)?;
+                let left = self.scalar_at(left, data, slice, cancel, steps)?;
+                let right = self.scalar_at(right, data, slice, cancel, steps)?;
                 Arc::new(kernels::difference(&left, &right, cancel)?)
             },
             ScalarNode::Scale { input, factor, offset } => {
-                let input = self.scalar(input, data, slice, cancel)?;
+                let input = self.scalar_at(input, data, slice, cancel, steps)?;
                 Arc::new(kernels::scale(&input, *factor, *offset, cancel)?)
             },
             ScalarNode::Magnitude { input } => {
-                let vector = self.vector(input, data, slice, cancel)?;
+                let vector = self.vector_at(input, data, slice, cancel, steps)?;
                 Arc::new(kernels::magnitude(&vector, cancel)?)
             },
         };
@@ -163,19 +172,22 @@ impl Evaluator {
         Ok(grid)
     }
     pub fn vector(&mut self, node: &VectorNode, data: &Dataset, slice: &Slice, cancel: &Cancellation) -> Result<Arc<VectorGrid>> {
+        self.vector_at(node, data, slice, cancel, 0)
+    }
+    fn vector_at(&mut self, node: &VectorNode, data: &Dataset, slice: &Slice, cancel: &Cancellation, steps: i64) -> Result<Arc<VectorGrid>> {
         cancel.check()?;
-        let key = serde_json::to_string(&("vector", slice, node))?;
+        let key = serde_json::to_string(&("vector", slice, node, steps))?;
         if let Some(Cached::Vector(grid)) = self.cache.get(&key) { return Ok(grid.clone()); }
         let vector = match node {
             VectorNode::Components { u, v } => {
-                let u = self.scalar(u, data, slice, cancel)?;
-                let v = self.scalar(v, data, slice, cancel)?;
+                let u = self.scalar_at(u, data, slice, cancel, steps)?;
+                let v = self.scalar_at(v, data, slice, cancel, steps)?;
                 kernels::same_geometry(&u, &v)?;
                 ensure!(u.units == v.units, "Vector components require matching units");
                 VectorGrid { u, v }
             },
             VectorNode::Gradient { input } => {
-                let input = self.scalar(input, data, slice, cancel)?;
+                let input = self.scalar_at(input, data, slice, cancel, steps)?;
                 kernels::gradient(&input, cancel)?
             },
         };

@@ -74,6 +74,24 @@ impl Dataset {
         Ok(Slice { x: dims[px].name(), y: dims[py].name(), indices })
     }
 
+    pub fn read_time_shift(&self, variable: &str, slice: &Slice, steps: i64) -> Result<Arc<Grid>> {
+        if steps == 0 { return self.read(variable, slice); }
+        let var = self.variable(variable)?;
+        let dim = var.dimensions().iter().find(|dim| self.role(variable, &var, dim) == Some(Role::Time))
+            .with_context(|| format!("Time shift requires a time dimension in {variable:?}"))?;
+        let name = dim.name();
+        ensure!(name != slice.x && name != slice.y, "Time shift requires time to be a frame dimension, not a plotted axis");
+        let at = slice.indices.get(&name).copied().unwrap_or(0);
+        let shifted = i128::try_from(at)? + i128::from(steps);
+        if shifted < 0 || shifted >= i128::try_from(dim.len())? {
+            let grid = self.read(variable, slice)?;
+            return Ok(Arc::new(grid.with_values(vec![f32::NAN; grid.values.len()], grid.units.clone())));
+        }
+        let mut shifted_slice = slice.clone();
+        shifted_slice.indices.insert(name, usize::try_from(shifted)?);
+        self.read(variable, &shifted_slice)
+    }
+
     pub fn read(&self, variable: &str, slice: &Slice) -> Result<Arc<Grid>> {
         let var = self.variable(variable)?;
         ensure!(is_numeric(&var), "variable {variable:?} is not numeric");

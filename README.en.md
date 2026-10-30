@@ -19,7 +19,7 @@ flowchart LR
 ## Features
 
 - **Visual Node Graph**: Build processing pipelines without code. Connect nodes by selecting output (`Output →`) and input ports (`A ←`, `B ←`).
-- **Operators**: Includes `Gaussian blur`, `Mean convolution`, `Difference (A − B)`, `Scale & offset`, `Gradient`, `Vector (U + V)`, and `Magnitude`.
+- **Operators**: Includes `Gaussian blur`, `Mean convolution`, `t+n · Time shift`, `Difference (A − B)`, `Scale & offset`, `Gradient`, `Vector (U + V)`, and `Magnitude`.
 - **Multi-Variable Layer Blending**: Layer multiple variables and derived fields in a compositing stack. Each layer independently configures its colormap (`viridis`, `thermal` / `inferno`, `diverging` / `RdBu_r`, `gray`), opacity (0% to 100% with ±5% fine adjustment), visibility, and z-order.
 - **Probe Grid & Time Series**: 12×12 click probe lattice over the field. Clicking any cell writes the coordinate index and retrieves the complete 1D time series across available frames.
 - **Python Export**: One-click generation of standalone Python scripts based on `xarray`, `numpy`, `scipy.ndimage`, and `matplotlib`. Reproduces the exact graph topology, slices, colormaps, opacity blend, and vector arrows offline.
@@ -49,6 +49,10 @@ In Tern, open the command palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and execute *
 - **Layers Stack (Right Rail)**: Manage active layers. Toggle visibility, switch colormaps, adjust opacity sliders, and reorder layers (`↑` / `↓`).
 - **Operator Library (Bottom Left)**: Quick-add operation nodes and access export buttons (Python, PNG, NetCDF).
 - **Processing Graph (Bottom Right)**: Interactive node workspace showing connected upstream dependencies, numerical parameters (e.g. $\sigma$, scale factors), and layer controls.
+
+### Temporal differences
+
+The `t+n` node shifts its input by n time frames, with n=1 by default. Use − / + to select positive, zero, or negative offsets. Connect the shifted field to Difference input A and the original field to input B to compute `A(t+n) − A(t)`. Offsets count dataset frames. Frames outside the time range contain missing values. Time must be a frame dimension. Depth and other slice indices remain fixed. Scripts use `time_shift(field("uo"), 1)`, and Python exports preserve these semantics.
 
 ## Python Export
 
