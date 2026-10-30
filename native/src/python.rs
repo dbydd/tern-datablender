@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser(description=__doc__)
     text.push_str("if Path(args.output).exists():\n    raise FileExistsError(args.output)\n");
     text.push_str(&format!("slice_spec = json.loads({})\n", quote(&serde_json::to_string(&project.slice)?)));
     text.push_str(r#"
-def field(name):
+def field(name, steps=0):
     group, _, variable = name.rpartition('/')
     with xr.open_dataset(args.source, group=group or None) as dataset:
         data = dataset[variable].load()
@@ -39,14 +39,43 @@ def field(name):
             if attrs.get('axis', '').upper() == expected or attrs.get('standard_name') in standards or dim.lower() in names:
                 return dim
         return fallback
+    def time_axis(candidates):
+        for dim in candidates:
+            coord = data.coords.get(dim)
+            attrs = coord.attrs if coord is not None else {}
+            lower = dim.strip().lower()
+            if (attrs.get('axis', '').strip().upper() == 'T'
+                    or 'time' in attrs.get('standard_name', '').strip().lower()
+                    or ' since ' in attrs.get('units', '').strip().lower()
+                    or lower in ('time', 't')
+                    or lower.endswith('_time')
+                    or 'date' in lower):
+                return dim
+        return None
     x = axis('x', dims[-1])
     y = axis('y', dims[-2])
     indices = slice_spec.get('indices', {})
-    data = data.isel({d: indices.get(d, 0) for d in dims if d not in (x, y)}).transpose(y, x)
+    selections = {d: indices.get(d, 0) for d in dims if d not in (x, y)}
+    missing = False
+    if steps:
+        time = time_axis(list(selections))
+        if time is None:
+            if time_axis([x, y]) is not None:
+                raise ValueError(f'{name!r} plots its time axis, so it cannot be shifted in time')
+            raise ValueError(f'{name!r} has no time dimension to shift')
+        target = selections[time] + steps
+        if 0 <= target < data.sizes[time]:
+            selections[time] = target
+        else:
+            missing = True
+    data = data.isel(selections).transpose(y, x)
     for dim in (y, x):
         if dim not in data.coords:
             data = data.assign_coords({dim: np.arange(data.sizes[dim], dtype=float)})
-    return data.astype(np.float32)
+    data = data.astype(np.float32)
+    if missing:
+        data = data.copy(data=np.full(data.shape, np.nan, dtype=np.float32))
+    return data
 
 
 def same_grid(a, b):
@@ -122,11 +151,11 @@ ax.set_facecolor((0, 0, 0, 0))
     let mut emitter = Emitter { lines: String::new(), scalars: Vec::new(), vectors: Vec::new() };
     let mut layers = Vec::new();
     for layer in &scene.layers {
-        let name = emitter.scalar(&layer.field)?;
+        let name = emitter.scalar(&layer.field, 0)?;
         layers.push((name, layer));
     }
     let mut arrows = Vec::new();
-    for arrow in &scene.arrows { arrows.push((emitter.vector(&arrow.field)?, arrow)); }
+    for arrow in &scene.arrows { arrows.push((emitter.vector(&arrow.field, 0)?, arrow)); }
     text.push_str(&emitter.lines);
     for (i, (name, layer)) in layers.iter().enumerate() {
         let map = match layer.colormap { ColorMap::Viridis => "viridis", ColorMap::Thermal => "inferno", ColorMap::Diverging => "RdBu_r", ColorMap::Gray => "gray" };
@@ -145,28 +174,35 @@ fn quote(s: &str) -> String { serde_json::to_string(s).unwrap() }
 
 struct Emitter { lines: String, scalars: Vec<(String, String)>, vectors: Vec<(String, String)> }
 impl Emitter {
-    fn scalar(&mut self, n: &ScalarNode) -> Result<String> {
-        let key = serde_json::to_string(n)?;
+    fn scalar(&mut self, n: &ScalarNode, offset: i64) -> Result<String> {
+        let key = format!("{}@{offset}", serde_json::to_string(n)?);
         if let Some((_, name)) = self.scalars.iter().find(|(k,_)| *k == key) { return Ok(name.clone()); }
         let expression = match n {
-            ScalarNode::Source { variable } => format!("field({})", quote(variable)),
-            ScalarNode::Gaussian { input,sigma } => format!("gaussian({}, {sigma:?})",self.scalar(input)?),
-            ScalarNode::Convolve { input,kernel,side } => format!("convolution({}, np.array({kernel:?}).reshape({side}, {side}))",self.scalar(input)?),
-            ScalarNode::Difference { left,right } => format!("difference({}, {})",self.scalar(left)?,self.scalar(right)?),
-            ScalarNode::Scale { input,factor,offset } => format!("scale({}, {factor:?}, {offset:?})",self.scalar(input)?),
-            ScalarNode::Magnitude { input } => format!("magnitude({})",self.vector(input)?),
+            ScalarNode::TimeShift { input, steps } => {
+                let total = offset.checked_add(*steps).context("Time shift offsets overflow")?;
+                let name = self.scalar(input, total)?;
+                self.scalars.push((key, name.clone()));
+                return Ok(name);
+            },
+            ScalarNode::Source { variable } if offset == 0 => format!("field({})", quote(variable)),
+            ScalarNode::Source { variable } => format!("field({}, {offset})", quote(variable)),
+            ScalarNode::Gaussian { input,sigma } => format!("gaussian({}, {sigma:?})",self.scalar(input, offset)?),
+            ScalarNode::Convolve { input,kernel,side } => format!("convolution({}, np.array({kernel:?}).reshape({side}, {side}))",self.scalar(input, offset)?),
+            ScalarNode::Difference { left,right } => format!("difference({}, {})",self.scalar(left, offset)?,self.scalar(right, offset)?),
+            ScalarNode::Scale { input,factor,offset: shift } => format!("scale({}, {factor:?}, {shift:?})",self.scalar(input, offset)?),
+            ScalarNode::Magnitude { input } => format!("magnitude({})",self.vector(input, offset)?),
         };
         let name = format!("field_{}",self.scalars.len()+1);
         self.lines.push_str(&format!("{name} = {expression}\n"));
         self.scalars.push((key,name.clone()));
         Ok(name)
     }
-    fn vector(&mut self,n:&VectorNode)->Result<String> {
-        let key=serde_json::to_string(n)?;
+    fn vector(&mut self,n:&VectorNode,offset:i64)->Result<String> {
+        let key=format!("{}@{offset}",serde_json::to_string(n)?);
         if let Some((_,name))=self.vectors.iter().find(|(k,_)|*k==key) { return Ok(name.clone()); }
         let expression=match n {
-            VectorNode::Components {u,v}=>format!("vector({}, {})",self.scalar(u)?,self.scalar(v)?),
-            VectorNode::Gradient {input}=>format!("gradient({})",self.scalar(input)?),
+            VectorNode::Components {u,v}=>format!("vector({}, {})",self.scalar(u, offset)?,self.scalar(v, offset)?),
+            VectorNode::Gradient {input}=>format!("gradient({})",self.scalar(input, offset)?),
         };
         let name=format!("vector_{}",self.vectors.len()+1);
         self.lines.push_str(&format!("{name} = {expression}\n"));
