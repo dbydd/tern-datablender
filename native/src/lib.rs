@@ -1,6 +1,8 @@
 pub mod model;
 pub mod graph;
 pub mod kernels;
+pub mod mat_io;
+pub mod dataset;
 pub mod netcdf_io;
 pub mod render;
 pub mod runtime;

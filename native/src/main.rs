@@ -1,7 +1,7 @@
 use std::{path::PathBuf, sync::{Arc, atomic::AtomicU64}, time::Instant};
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use tern_netcdf::{graph, kernels::Cancellation, model::{Project, Slice}, netcdf_io::Dataset, render, runtime::{Engine, Output}};
+use tern_netcdf::{dataset::Dataset, graph, kernels::Cancellation, model::{Project, Slice}, render, runtime::{Engine, Output}};
 
 #[derive(Parser)]
 #[command(version, about = "NetCDF fields with a composable processing pipeline inside Tern")]

@@ -22,10 +22,21 @@ parser = argparse.ArgumentParser(description=__doc__)
     text.push_str(&format!("slice_spec = json.loads({})\n", quote(&serde_json::to_string(&project.slice)?)));
     text.push_str(r#"
 def field(name, steps=0):
-    group, _, variable = name.rpartition('/')
-    with xr.open_dataset(args.source, group=group or None) as dataset:
-        data = dataset[variable].load()
-    dims = list(data.dims)
+    if args.source.lower().endswith('.mat'):
+        import scipy.io as sio
+        mat = sio.loadmat(args.source)
+        raw = mat[name]
+        raw_dims = [f'dim_{i+1}' for i in range(raw.ndim)]
+        if raw.ndim >= 3:
+            raw_dims[2] = 'time'
+        coords = {d: np.arange(raw.shape[i], dtype=float) for i, d in enumerate(raw_dims)}
+        data = xr.DataArray(raw.astype(np.float32), dims=raw_dims, coords=coords)
+        dims = list(data.dims)
+    else:
+        group, _, variable = name.rpartition('/')
+        with xr.open_dataset(args.source, group=group or None) as dataset:
+            data = dataset[variable].load()
+        dims = list(data.dims)
     def axis(kind, fallback):
         explicit = slice_spec.get(kind)
         if explicit:
@@ -109,6 +120,39 @@ def difference(a, b):
     return a.copy(data=(a.values - b.values).astype(np.float32))
 
 
+def addition(a, b):
+    same_grid(a, b)
+    return a.copy(data=(a.values + b.values).astype(np.float32))
+
+
+def filter_range(a, min_val, max_val):
+    valid = np.isfinite(a.values)
+    if min_val is not None:
+        valid = valid & (a.values >= min_val)
+    if max_val is not None:
+        valid = valid & (a.values <= max_val)
+    return a.copy(data=np.where(valid, a.values, np.nan).astype(np.float32))
+
+
+def median_filter_2d(a, radius):
+    from scipy.ndimage import median_filter
+    values = median_filter(a.values.astype(float), size=2*radius+1, mode='mirror')
+    return a.copy(data=values.astype(np.float32))
+
+
+def fft2_spectrum(a):
+    valid = np.nan_to_num(a.values, nan=float(np.nanmean(a.values)) if np.any(np.isfinite(a.values)) else 0.0)
+    spectrum = np.fft.fftshift(np.fft.fft2(valid))
+    mag = np.log1p(np.abs(spectrum))
+    return a.copy(data=mag.astype(np.float32))
+
+
+def ifft2_real(a):
+    valid = np.nan_to_num(a.values, nan=0.0)
+    res = np.fft.ifft2(valid).real
+    return a.copy(data=res.astype(np.float32))
+
+
 def scale(a, factor, offset):
     return a.copy(data=(a.values.astype(float) * factor + offset).astype(np.float32))
 
@@ -189,6 +233,11 @@ impl Emitter {
             ScalarNode::Gaussian { input,sigma } => format!("gaussian({}, {sigma:?})",self.scalar(input, offset)?),
             ScalarNode::Convolve { input,kernel,side } => format!("convolution({}, np.array({kernel:?}).reshape({side}, {side}))",self.scalar(input, offset)?),
             ScalarNode::Difference { left,right } => format!("difference({}, {})",self.scalar(left, offset)?,self.scalar(right, offset)?),
+            ScalarNode::Addition { left,right } => format!("addition({}, {})",self.scalar(left, offset)?,self.scalar(right, offset)?),
+            ScalarNode::Filter { input,min,max } => format!("filter_range({}, {:?}, {:?})",self.scalar(input, offset)?,min,max),
+            ScalarNode::Median { input,radius } => format!("median_filter_2d({}, {:?})",self.scalar(input, offset)?,radius),
+            ScalarNode::Fft2 { input } => format!("fft2_spectrum({})",self.scalar(input, offset)?),
+            ScalarNode::Ifft2 { input } => format!("ifft2_real({})",self.scalar(input, offset)?),
             ScalarNode::Scale { input,factor,offset: shift } => format!("scale({}, {factor:?}, {shift:?})",self.scalar(input, offset)?),
             ScalarNode::Magnitude { input } => format!("magnitude({})",self.vector(input, offset)?),
         };

@@ -1,6 +1,6 @@
 --!strict
 
-local field_extensions = { nc = true, nc4 = true, cdf = true }
+local field_extensions = { nc = true, nc4 = true, cdf = true, mat = true }
 
 local function quote(text: string): string
     return "'" .. text:gsub("'", "'\\''") .. "'"
@@ -74,7 +74,7 @@ end
 tern.command({
     id = "open", title = "NetCDF: Open data file", icon = "file",
     run = function(cx: any)
-        cx:prompt({ placeholder = "NetCDF path (.nc, .nc4, .cdf)" }):next(function(path: string?, err: string?, fresh: any)
+        cx:prompt({ placeholder = "NetCDF / MAT path (.nc, .nc4, .cdf, .mat)" }):next(function(path: string?, err: string?, fresh: any)
             if err then fresh:toast("error", err) return end
             if path and path ~= "" then launch(fresh, path, nil, "tab") end
         end)

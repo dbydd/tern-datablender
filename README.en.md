@@ -19,8 +19,8 @@ flowchart LR
 ## Features
 
 - **Visual Node Graph**: Build processing pipelines without code. Connect nodes by selecting output (`Output →`) and input ports (`A ←`, `B ←`).
-- **Operators**: Includes `Gaussian blur`, `Mean convolution`, `t+n · Time shift`, `Difference (A − B)`, `Scale & offset`, `Gradient`, `Vector (U + V)`, and `Magnitude`.
-- **Multi-Variable Layer Blending**: Layer multiple variables and derived fields in a compositing stack. Each layer independently configures its colormap (`viridis`, `thermal` / `inferno`, `diverging` / `RdBu_r`, `gray`), opacity (0% to 100% with ±5% fine adjustment), visibility, and z-order.
+- **Operators**: Includes `Gaussian blur`, `Mean convolution`, `Difference (A − B)`, `Addition (A + B)`, `Scale & offset`, `Filter · Range [min, max]`, `Median filter`, `2D FFT · Spectrum`, `2D IFFT · Inverse`, `Gradient`, `Vector (U + V)`, `Magnitude`, and `t+n · Time shift`.
+- **Multi-Variable Layer Blending**: Layer multiple variables and derived fields in a compositing stack. Each layer independently configures its visibility (`Hide` / `Show`), removal (`Remove`), colormap, opacity, and z-order.
 - **Probe Grid & Time Series**: 12×12 click probe lattice over the field. Clicking any cell writes the coordinate index and retrieves the complete 1D time series across available frames.
 - **Python Export**: One-click generation of standalone Python scripts based on `xarray`, `numpy`, `scipy.ndimage`, and `matplotlib`. Reproduces the exact graph topology, slices, colormaps, opacity blend, and vector arrows offline.
 
@@ -40,7 +40,7 @@ tern plugin list                      # Shows tern-netcdf ready
 
 ## Usage
 
-In Tern, open the command palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and execute **"NetCDF: Open data file"**, then enter a `.nc`, `.nc4`, or `.cdf` path. The plugin also handles file opens from the file manager, terminal commands (`tern open <file.nc>`), and Finder drag-and-drop.
+In Tern, open the command palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and execute **"NetCDF: Open data file"**, then enter a `.nc`, `.nc4`, `.cdf`, or `.mat` path. The plugin also handles file opens from the file manager, terminal commands (`tern open <file.mat>`), and Finder drag-and-drop.
 
 ### Workspace Layout
 

@@ -23,6 +23,17 @@ jobs=${JOBS:-4}
 while [ $# -gt 0 ]; do
     case "$1" in
         -h|--help) usage ;;
+        -t|--target)
+            [ $# -ge 2 ] || usage
+            [ -z "$target" ] || die "only one target triple may be given"
+            target=$2
+            shift 2
+            ;;
+        --target=*)
+            [ -z "$target" ] || die "only one target triple may be given"
+            target=${1#--target=}
+            shift
+            ;;
         -j|--jobs)
             [ $# -ge 2 ] || usage
             jobs=$2

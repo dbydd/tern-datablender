@@ -1,6 +1,7 @@
 use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
 use anyhow::{Result, bail, ensure};
 use rayon::prelude::*;
+use rustfft::{FftPlanner, num_complex::Complex32};
 use crate::model::{Grid, VectorGrid};
 
 #[derive(Clone)]
@@ -100,6 +101,150 @@ pub fn difference(a: &Grid, b: &Grid, cancel: &Cancellation) -> Result<Grid> {
         Ok(())
     })?;
     Ok(a.with_values(values, a.units.clone()))
+}
+
+pub fn addition(a: &Grid, b: &Grid, cancel: &Cancellation) -> Result<Grid> {
+    same_geometry(a, b)?;
+    ensure!(a.units == b.units, "Addition requires matching units ({} versus {})", a.units, b.units);
+    let mut values = vec![0.0; a.values.len()];
+    values.par_chunks_mut(a.width).enumerate().try_for_each(|(y, row)| -> Result<()> {
+        cancel.check()?;
+        for (x, value) in row.iter_mut().enumerate() { let i = y * a.width + x; *value = a.values[i] + b.values[i]; }
+        Ok(())
+    })?;
+    Ok(a.with_values(values, a.units.clone()))
+}
+
+pub fn filter_range(grid: &Grid, min: Option<f64>, max: Option<f64>, cancel: &Cancellation) -> Result<Grid> {
+    let mut values = vec![f32::NAN; grid.values.len()];
+    values.par_chunks_mut(grid.width).enumerate().try_for_each(|(y, row)| -> Result<()> {
+        cancel.check()?;
+        for (x, value) in row.iter_mut().enumerate() {
+            let v = grid.values[y * grid.width + x];
+            if v.is_finite() {
+                let f = f64::from(v);
+                let pass_min = min.map_or(true, |m| f >= m);
+                let pass_max = max.map_or(true, |m| f <= m);
+                if pass_min && pass_max {
+                    *value = v;
+                }
+            }
+        }
+        Ok(())
+    })?;
+    Ok(grid.with_values(values, grid.units.clone()))
+}
+
+pub fn median(grid: &Grid, radius: usize, cancel: &Cancellation) -> Result<Grid> {
+    let radius = radius.clamp(1, 15) as isize;
+    let mut values = vec![f32::NAN; grid.values.len()];
+    values.par_chunks_mut(grid.width).enumerate().try_for_each(|(y, row)| -> Result<()> {
+        cancel.check()?;
+        let mut window = Vec::with_capacity(((2 * radius + 1) * (2 * radius + 1)) as usize);
+        for (x, value) in row.iter_mut().enumerate() {
+            if !grid.values[y * grid.width + x].is_finite() { continue; }
+            window.clear();
+            for dy in -radius..=radius {
+                let iy = reflect(y as isize + dy, grid.height);
+                for dx in -radius..=radius {
+                    let ix = reflect(x as isize + dx, grid.width);
+                    let v = grid.values[iy * grid.width + ix];
+                    if v.is_finite() {
+                        window.push(v);
+                    }
+                }
+            }
+            if !window.is_empty() {
+                window.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                *value = window[window.len() / 2];
+            }
+        }
+        Ok(())
+    })?;
+    Ok(grid.with_values(values, grid.units.clone()))
+}
+
+pub fn fft2(grid: &Grid, cancel: &Cancellation) -> Result<Grid> {
+    let width = grid.width;
+    let height = grid.height;
+    ensure!(width >= 2 && height >= 2, "FFT requires at least a 2x2 grid");
+    cancel.check()?;
+
+    let (mut sum, mut count) = (0.0f64, 0usize);
+    for &v in &grid.values {
+        if v.is_finite() { sum += f64::from(v); count += 1; }
+    }
+    let fill = if count > 0 { (sum / count as f64) as f32 } else { 0.0 };
+
+    let mut buffer: Vec<Complex32> = grid.values.iter().map(|&v| {
+        Complex32::new(if v.is_finite() { v } else { fill }, 0.0)
+    }).collect();
+
+    let mut planner = FftPlanner::new();
+    let fft_row = planner.plan_fft_forward(width);
+    for row in buffer.chunks_exact_mut(width) {
+        fft_row.process(row);
+    }
+
+    let fft_col = planner.plan_fft_forward(height);
+    let mut col_buf = vec![Complex32::default(); height];
+    for x in 0..width {
+        for y in 0..height {
+            col_buf[y] = buffer[y * width + x];
+        }
+        fft_col.process(&mut col_buf);
+        for y in 0..height {
+            buffer[y * width + x] = col_buf[y];
+        }
+    }
+
+    let mut values = vec![0.0f32; width * height];
+    let half_w = width / 2;
+    let half_h = height / 2;
+    for y in 0..height {
+        let shifted_y = (y + half_h) % height;
+        for x in 0..width {
+            let shifted_x = (x + half_w) % width;
+            let c = buffer[y * width + x];
+            let mag = (c.re * c.re + c.im * c.im).sqrt();
+            values[shifted_y * width + shifted_x] = (1.0 + mag).ln();
+        }
+    }
+
+    Ok(grid.with_values(values, format!("log|FFT({})|", grid.units)))
+}
+
+pub fn ifft2(grid: &Grid, cancel: &Cancellation) -> Result<Grid> {
+    let width = grid.width;
+    let height = grid.height;
+    ensure!(width >= 2 && height >= 2, "IFFT requires at least a 2x2 grid");
+    cancel.check()?;
+
+    let mut buffer: Vec<Complex32> = grid.values.iter().map(|&v| {
+        Complex32::new(if v.is_finite() { v } else { 0.0 }, 0.0)
+    }).collect();
+
+    let mut planner = FftPlanner::new();
+    let fft_row = planner.plan_fft_inverse(width);
+    for row in buffer.chunks_exact_mut(width) {
+        fft_row.process(row);
+    }
+
+    let fft_col = planner.plan_fft_inverse(height);
+    let mut col_buf = vec![Complex32::default(); height];
+    for x in 0..width {
+        for y in 0..height {
+            col_buf[y] = buffer[y * width + x];
+        }
+        fft_col.process(&mut col_buf);
+        for y in 0..height {
+            buffer[y * width + x] = col_buf[y];
+        }
+    }
+
+    let norm = (width * height) as f32;
+    let values: Vec<f32> = buffer.iter().map(|c| c.re / norm).collect();
+    Ok(grid.with_values(values, grid.units.clone()))
 }
 
 pub fn scale(grid: &Grid, factor: f64, offset: f64, cancel: &Cancellation) -> Result<Grid> {

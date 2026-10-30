@@ -1,7 +1,7 @@
 use std::{collections::{HashMap, VecDeque}, sync::{Arc, Mutex}};
 use anyhow::{Result, anyhow, ensure};
 use rhai::{Array, Engine, EvalAltResult, Scope, FLOAT, INT};
-use crate::{kernels::{self, Cancellation}, model::*, netcdf_io::Dataset};
+use crate::{dataset::Dataset, kernels::{self, Cancellation}, model::*};
 
 #[derive(Clone)]
 struct Scalar(Arc<ScalarNode>);
@@ -56,6 +56,12 @@ pub fn compile(script: &str) -> Result<Scene> {
     });
     engine.register_fn("difference", |left: Scalar, right: Scalar| Scalar(Arc::new(ScalarNode::Difference { left: left.0, right: right.0 })));
     engine.register_fn("-", |left: Scalar, right: Scalar| Scalar(Arc::new(ScalarNode::Difference { left: left.0, right: right.0 })));
+    engine.register_fn("addition", |left: Scalar, right: Scalar| Scalar(Arc::new(ScalarNode::Addition { left: left.0, right: right.0 })));
+    engine.register_fn("+", |left: Scalar, right: Scalar| Scalar(Arc::new(ScalarNode::Addition { left: left.0, right: right.0 })));
+    engine.register_fn("filter", |input: Scalar, min: FLOAT, max: FLOAT| Scalar(Arc::new(ScalarNode::Filter { input: input.0, min: Some(min), max: Some(max) })));
+    engine.register_fn("median", |input: Scalar, radius: INT| Scalar(Arc::new(ScalarNode::Median { input: input.0, radius: radius.max(1) as usize })));
+    engine.register_fn("fft2", |input: Scalar| Scalar(Arc::new(ScalarNode::Fft2 { input: input.0 })));
+    engine.register_fn("ifft2", |input: Scalar| Scalar(Arc::new(ScalarNode::Ifft2 { input: input.0 })));
     engine.register_fn("scale", |input: Scalar, factor: FLOAT, offset: FLOAT| -> ScriptResult<Scalar> {
         if !factor.is_finite() || !offset.is_finite() { return Err("Scale parameters must be finite".into()); }
         Ok(Scalar(Arc::new(ScalarNode::Scale { input: input.0, factor, offset })))
@@ -157,6 +163,27 @@ impl Evaluator {
                 let left = self.scalar_at(left, data, slice, cancel, steps)?;
                 let right = self.scalar_at(right, data, slice, cancel, steps)?;
                 Arc::new(kernels::difference(&left, &right, cancel)?)
+            },
+            ScalarNode::Addition { left, right } => {
+                let left = self.scalar_at(left, data, slice, cancel, steps)?;
+                let right = self.scalar_at(right, data, slice, cancel, steps)?;
+                Arc::new(kernels::addition(&left, &right, cancel)?)
+            },
+            ScalarNode::Filter { input, min, max } => {
+                let input = self.scalar_at(input, data, slice, cancel, steps)?;
+                Arc::new(kernels::filter_range(&input, *min, *max, cancel)?)
+            },
+            ScalarNode::Median { input, radius } => {
+                let input = self.scalar_at(input, data, slice, cancel, steps)?;
+                Arc::new(kernels::median(&input, *radius, cancel)?)
+            },
+            ScalarNode::Fft2 { input } => {
+                let input = self.scalar_at(input, data, slice, cancel, steps)?;
+                Arc::new(kernels::fft2(&input, cancel)?)
+            },
+            ScalarNode::Ifft2 { input } => {
+                let input = self.scalar_at(input, data, slice, cancel, steps)?;
+                Arc::new(kernels::ifft2(&input, cancel)?)
             },
             ScalarNode::Scale { input, factor, offset } => {
                 let input = self.scalar_at(input, data, slice, cancel, steps)?;

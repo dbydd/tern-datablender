@@ -34,14 +34,14 @@ tern plugin list                      # 显示 tern-netcdf ready
 
 ## 使用
 
-命令面板执行 "NetCDF: Open data file"，输入 `.nc`、`.nc4` 或 `.cdf` 路径。插件注册了这三类扩展名的打开路由：在文件面板、Finder 拖放、`tern open` 或命令面板打开时，都会启动原生查看器，不再落到十六进制编辑器。`NetCDF: New workspace` 建立空项目，`NetCDF: Resume last project` 恢复上一个项目。
+命令面板执行 "NetCDF: Open data file"，输入 `.nc`、`.nc4`、`.cdf` 或 `.mat` 路径。插件注册了这四类扩展名的打开路由：在文件面板、Finder 拖放、`tern open` 或命令面板打开时，都会启动原生查看器，不再落到十六进制编辑器。`NetCDF: New workspace` 建立空项目，`NetCDF: Resume last project` 恢复上一个项目。
 
 界面按可视化数据流组织：
 
 1. **输入变量列表（左侧）**：列出数据集变量。每个变量卡片独立展示名称、维度标签（如 `time: 365`、`latitude: 121`）和单位，标签自适应换行，点击 `+ Node` 直接将该变量作为源节点添加到处理节点图中。
 2. **双场对比区（中间）**：左图显示原始场，右图显示经节点图处理与图层合成后的复合场。两图均覆盖 12×12 点击探针网格与时间序列点选条。
-3. **多图层混合栈（右侧）**：支持将任意节点加入图层。每个图层支持独立配置色标（Viridis、Thermal / Inferno、Diverging / RdBu_r、Gray）、透明度（0%、25%、50%、75%、100% 及 ±5% 微调）、显隐切换以及上下图层移序。多变量在像素级按 Alpha 混合呈现。
-4. **操作算子库（底部左侧）**：提供 `Gaussian blur`、`Mean convolution`、`t+n · Time shift`、`Difference (A − B)`、`Scale & offset`、`Gradient`、`Vector (U + V)` 和 `Magnitude` 算子节点，以及导出面板。
+3. **多图层混合栈（右侧）**：支持将任意节点加入图层。每个图层提供 `Hide` / `Show` 显隐切换、`Remove` 图层删除、独立色标切换、透明度微调以及上下图层移序。多变量在像素级按 Alpha 混合呈现。
+4. **操作算子库（底部左侧）**：提供 `Gaussian blur`、`Mean convolution`、`Difference (A − B)`、`Addition (A + B)`、`Scale & offset`、`Filter · Range [min, max]`、`Median filter`、`2D FFT · Spectrum`、`2D IFFT · Inverse`、`Gradient`、`Vector (U + V)`、`Magnitude` 和 `t+n · Time shift` 算子节点，以及导出面板。
 5. **节点图画布（底部右侧）**：免代码的流式节点工作台。每个节点具备清晰的输入端口（`A ←`、`B ←`）与输出端口（`Output →`），支持参数微调步进（如高斯 $\sigma$、缩放因数与偏置）与连线环路自动检测。
 
 ### 时序差分
@@ -54,9 +54,10 @@ tern plugin list                      # 显示 tern-netcdf ready
 
 图面覆盖 12×12 的透明格网：点一格就把该点的网格索引写进 x / y，并读出这一点的整条时间序列。序列显示为 64 格字符条，点任意一格跳到对应帧；播放、上一帧、下一帧与坐标输入仍然可用。协议不提供鼠标坐标，格网把点击换算成网格索引。图像按可用高度铺满画布，渲染期间保留上一帧，完成后直接替换。梯度输出保持"变量单位 / 度"，没有换算成球面距离。
 
-## 数据边界
+## 数据边界与格式支持
 
-- NetCDF 读取支持经典格式与 NetCDF-4、分组变量和一维坐标；`_FillValue` 与 `missing_value` 处理为缺测，`valid_min` 等属性不参与裁剪。
+- **NetCDF 与 MATLAB 数据源**：支持经典 NetCDF、NetCDF-4、MATLAB Level 5 / v7 压缩 `.mat` 文件以及 MATLAB v7.3 / HDF5 `.mat` 文件。自动解析二维与多维实数矩阵、坐标轴与时序切片。
+- `_FillValue` 与 `missing_value` 处理为缺测，`valid_min` 等属性不参与裁剪。
 - 图像最长边 1536 像素；更大的网格降采样显示，导出 NetCDF 保留完整精度。
 - 导出 PNG 与 NetCDF 要求目标文件不存在。项目 JSON 记录路径、脚本、变量、切片与色标。
 - TSP 不提供鼠标坐标、滚轮与拖拽事件；点选、缩放和平移使用格网、控件与键盘。

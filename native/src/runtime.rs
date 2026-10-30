@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, fs, path::Path, sync::{Arc, Condvar, Mutex, atomic::{AtomicU64, Ordering}, mpsc::{self, Receiver}}, thread::{self, JoinHandle}, time::{Instant, SystemTime}};
 use anyhow::{Result, Context, ensure};
-use crate::{graph::{self, Evaluator}, kernels::Cancellation, model::*, netcdf_io::{self, Dataset}, render};
+use crate::{dataset::Dataset, graph::{self, Evaluator}, kernels::Cancellation, model::*, netcdf_io, render};
 
 pub enum Output {
     Field {
@@ -28,7 +28,7 @@ pub struct Engine {
 }
 
 pub fn is_field(path: &str) -> bool {
-    Path::new(path).extension().and_then(|e| e.to_str()).is_some_and(|e| ["nc", "nc4", "cdf"].contains(&e.to_ascii_lowercase().as_str()))
+    Path::new(path).extension().and_then(|e| e.to_str()).is_some_and(|e| ["nc", "nc4", "cdf", "mat"].contains(&e.to_ascii_lowercase().as_str()))
 }
 
 impl Default for Engine {
@@ -41,7 +41,7 @@ impl Engine {
         ensure!(!project.path.trim().is_empty(), "Enter a data file path");
         cancel.check()?;
         let stamp = fs::metadata(&project.path).ok().and_then(|m| Some((m.len(), m.modified().ok()?)));
-        ensure!(is_field(&project.path), "{} is not a NetCDF file", project.path);
+        ensure!(is_field(&project.path), "{} is not a supported data file (.nc, .nc4, .cdf, .mat)", project.path);
         if self.path != project.path || self.stamp != stamp {
             let dataset = Dataset::open(&project.path).with_context(|| format!("Open {}", project.path))?;
             self.dataset = Some(dataset);

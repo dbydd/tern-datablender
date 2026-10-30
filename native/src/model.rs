@@ -54,6 +54,11 @@ pub enum ScalarNode {
     TimeShift { input: Arc<ScalarNode>, steps: i64 },
     Convolve { input: Arc<ScalarNode>, kernel: Vec<f64>, side: usize },
     Difference { left: Arc<ScalarNode>, right: Arc<ScalarNode> },
+    Addition { left: Arc<ScalarNode>, right: Arc<ScalarNode> },
+    Filter { input: Arc<ScalarNode>, min: Option<f64>, max: Option<f64> },
+    Median { input: Arc<ScalarNode>, radius: usize },
+    Fft2 { input: Arc<ScalarNode> },
+    Ifft2 { input: Arc<ScalarNode> },
     Scale { input: Arc<ScalarNode>, factor: f64, offset: f64 },
     Magnitude { input: Arc<VectorNode> },
 }
@@ -118,6 +123,11 @@ pub enum Operation {
     TimeShift { steps: i64 },
     Convolve { kernel: Vec<f64>, side: usize },
     Difference,
+    Addition,
+    Filter { min: Option<f64>, max: Option<f64> },
+    Median { radius: usize },
+    Fft2,
+    Ifft2,
     Scale { factor: f64, offset: f64 },
     Gradient,
     Vector,
@@ -174,6 +184,11 @@ impl NodeGraph {
                     FieldNode::Scalar(Arc::new(ScalarNode::Convolve { input: scalar(input(0)?)?, kernel: kernel.clone(), side: *side }))
                 },
                 Operation::Difference => FieldNode::Scalar(Arc::new(ScalarNode::Difference { left: scalar(input(0)?)?, right: scalar(input(1)?)? })),
+                Operation::Addition => FieldNode::Scalar(Arc::new(ScalarNode::Addition { left: scalar(input(0)?)?, right: scalar(input(1)?)? })),
+                Operation::Filter { min, max } => FieldNode::Scalar(Arc::new(ScalarNode::Filter { input: scalar(input(0)?)?, min: *min, max: *max })),
+                Operation::Median { radius } => FieldNode::Scalar(Arc::new(ScalarNode::Median { input: scalar(input(0)?)?, radius: *radius })),
+                Operation::Fft2 => FieldNode::Scalar(Arc::new(ScalarNode::Fft2 { input: scalar(input(0)?)? })),
+                Operation::Ifft2 => FieldNode::Scalar(Arc::new(ScalarNode::Ifft2 { input: scalar(input(0)?)? })),
                 Operation::Scale { factor, offset } => {
                     ensure!(factor.is_finite() && offset.is_finite(), "Scale parameters must be finite");
                     FieldNode::Scalar(Arc::new(ScalarNode::Scale { input: scalar(input(0)?)?, factor: *factor, offset: *offset }))

@@ -570,7 +570,7 @@ impl App {
     ) -> Result<()> {
         self.clear_focus(session, sf)?;
         match act {
-            "graph-add" | "graph-select" | "graph-output" | "graph-input" | "graph-remove" | "graph-param" | "graph-move" | "layer-map" | "layer-opacity" | "layer-toggle" | "layer-order" | "layer-add" => {
+            "graph-add" | "graph-select" | "graph-output" | "graph-input" | "graph-remove" | "graph-param" | "graph-move" | "layer-map" | "layer-opacity" | "layer-toggle" | "layer-order" | "layer-add" | "layer-remove" => {
                 if let Err(error) = self.graph_action(act, value.unwrap_or("")) {
                     self.status = Notice::err(format!("{error:#}"));
                 }
@@ -1495,6 +1495,11 @@ impl App {
                     "gaussian" => (Operation::Gaussian { sigma: 1.2 }, 1, "Gaussian".to_owned()),
                     "convolve" => (Operation::Convolve { kernel: vec![1.0 / 9.0; 9], side: 3 }, 1, "Convolve".into()),
                     "difference" => (Operation::Difference, 2, "Difference".into()),
+                    "addition" => (Operation::Addition, 2, "Addition".into()),
+                    "filter" => (Operation::Filter { min: Some(0.0), max: Some(1.0) }, 1, "Filter".into()),
+                    "median" => (Operation::Median { radius: 1 }, 1, "Median".into()),
+                    "fft2" => (Operation::Fft2, 1, "FFT2".into()),
+                    "ifft2" => (Operation::Ifft2, 1, "IFFT2".into()),
                     "scale" => (Operation::Scale { factor: 1.0, offset: 0.0 }, 1, "Scale".into()),
                     "gradient" => (Operation::Gradient, 1, "Gradient".into()),
                     "vector" => (Operation::Vector, 2, "Vector".into()),
@@ -1529,6 +1534,10 @@ impl App {
                     graph.layers.push(GraphLayer { node: id, visible: true, colormap: ColorMap::Viridis, opacity: if graph.layers.is_empty() { 1.0 } else { 0.5 }, range: None, stride: 8, arrow_scale: 1.0 });
                 }
             },
+            "layer-remove" => {
+                let id: u64 = value.parse()?;
+                graph.layers.retain(|l| l.node != id);
+            },
             "graph-param" | "graph-move" => {
                 let id: u64 = parts[0].parse()?;
                 let key = *parts.get(1).context("Missing parameter")?;
@@ -1539,6 +1548,16 @@ impl App {
                     Operation::Gaussian { sigma } => *sigma = (*sigma + delta).clamp(0.1, 64.0),
                     Operation::Scale { factor, offset } => if key == "factor" { *factor += delta } else { *offset += delta },
                     Operation::TimeShift { steps } => if let Some(next) = steps.checked_add(delta as i64) { *steps = next },
+                    Operation::Filter { min, max } => {
+                        if key == "min" {
+                            if let Some(m) = min { *m += delta; } else { *min = Some(delta); }
+                        } else if key == "max" {
+                            if let Some(m) = max { *m += delta; } else { *max = Some(delta); }
+                        }
+                    },
+                    Operation::Median { radius } => {
+                        *radius = (*radius as isize + delta as isize).clamp(1, 15) as usize;
+                    },
                     _ => {},
                 } }
             },
@@ -1725,7 +1744,7 @@ impl App {
     }
 
     fn header(&self) -> Node<Msg> {
-        let open = self.field_input(&self.open_field, "open", "NetCDF path (.nc, .nc4, .cdf)", true);
+        let open = self.field_input(&self.open_field, "open", "Data path (.nc, .nc4, .cdf, .mat)", true);
         let project = self.field_input(&self.project_field, "project", "Project JSON path", true);
         html::div::<Msg>()
             .class("db-head")
@@ -1759,7 +1778,7 @@ impl App {
     fn empty_body(&self) -> Node<Msg> {
         let mut panel = div("db-panel")
             .child(div("db-panel-h").child(ui::text::<Msg>("Start")))
-            .child(hint("Type a NetCDF path (`.nc`, `.nc4`, `.cdf`) above and press Open."))
+            .child(hint("Type a data path (`.nc`, `.nc4`, `.cdf`, `.mat`) above and press Open."))
             .child(hint("Project JSON is optional. When a --project path was supplied, the first successful result is saved there."));
         if !self.project_field.text.trim().is_empty() {
             panel = panel.child(hint(format!("Project: {}", self.project_field.text)));
@@ -1813,7 +1832,7 @@ impl App {
             }
         }
         let list: Node<Msg> = if items.is_empty() {
-            hint("Open a NetCDF file to list its numeric variables.")
+            hint("Open a NetCDF or MAT file to list its numeric variables.")
         } else {
             div("db-side-list").children(items).into()
         };
@@ -2076,7 +2095,7 @@ impl App {
     fn graph_library(&self) -> Node<Msg> {
         let mut panel = div("db-ops").key("operation-library")
             .child(div("db-panel-h").child(ui::text::<Msg>("Add operation")));
-        for (kind, name) in [("gaussian", "Gaussian blur"), ("convolve", "Mean convolution"), ("difference", "Difference · A − B"), ("scale", "Scale & offset"), ("gradient", "Gradient"), ("vector", "Vector · U + V"), ("magnitude", "Magnitude"), ("time_shift", "t+n · Time shift")] {
+        for (kind, name) in [("gaussian", "Gaussian blur"), ("convolve", "Mean convolution"), ("difference", "Difference · A − B"), ("addition", "Addition · A + B"), ("scale", "Scale & offset"), ("filter", "Filter · Range"), ("median", "Median filter"), ("fft2", "2D FFT · Spectrum"), ("ifft2", "2D IFFT · Inverse"), ("gradient", "Gradient"), ("vector", "Vector · U + V"), ("magnitude", "Magnitude"), ("time_shift", "t+n · Time shift")] {
             panel = panel.child(btn(name, "graph-add", Some(kind), "db-btn db-op"));
         }
         panel.child(div("db-panel-h").child(ui::text::<Msg>("Export")))
@@ -2110,6 +2129,16 @@ impl App {
                     Operation::Convolve { side,.. } => { card = card.child(hint(format!("{side} × {side} mean kernel"))); },
                     Operation::TimeShift { steps } => { parameter("steps",format!("Shift {steps:+} frames"),1.0);
                         card = card.child(hint("Positive n shows a later frame, negative n an earlier one. Nested shifts add their offsets. Frames outside the series show as missing.")); },
+                    Operation::Filter { min, max } => {
+                        if let Some(m) = min { parameter("min", format!("Min {m:.1}"), 0.5); }
+                        if let Some(m) = max { parameter("max", format!("Max {m:.1}"), 0.5); }
+                        card = card.child(hint("Masks values outside [min, max] as missing (NaN)."));
+                    },
+                    Operation::Median { radius } => {
+                        parameter("radius", format!("Radius {radius} cells"), 1.0);
+                    },
+                    Operation::Fft2 => { card = card.child(hint("2D FFT magnitude spectrum (log-scale with center shift).")); },
+                    Operation::Ifft2 => { card = card.child(hint("2D Inverse FFT reconstructed field.")); },
                     _ => {},
                 }
                 card = card.child(btn(if self.connect_from == Some(node.id) { "Output selected →" } else { "Output →" },"graph-output",Some(&id),"ng-port output"))
@@ -2136,7 +2165,9 @@ impl App {
                     .child(
                         div("ng-layer-head")
                             .child(html::span::<Msg>(title).class("ng-layer-title"))
-                            .child(btn(if layer.visible { "Hide" } else { "Show" },"layer-toggle",Some(&id),"db-mini")),
+                            .child(div("db-btns")
+                                .child(btn(if layer.visible { "Hide" } else { "Show" },"layer-toggle",Some(&id),"db-mini"))
+                                .child(btn("Remove","layer-remove",Some(&id),"db-mini"))),
                     );
                 let mut maps = div("ng-maps");
                 for map in ["viridis","thermal","diverging","gray"] {
