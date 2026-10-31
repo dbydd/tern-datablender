@@ -200,21 +200,107 @@
 	border-radius: 4px;
 }
 
-/* Click picking: 12 x 12 transparent cells over the picture. */
+/* Click picking & hover value tooltip: 16 x 16 transparent cells over the picture. */
 .db-picks {
 	position: absolute;
 	inset: 0;
 	display: grid;
-	grid-template-columns: repeat(12, minmax(0, 1fr));
-	grid-template-rows: repeat(12, minmax(0, 1fr));
+	grid-template-columns: repeat(16, minmax(0, 1fr));
+	grid-template-rows: repeat(16, minmax(0, 1fr));
+	pointer-events: auto;
 }
 
 .db-pick {
+	position: relative;
 	cursor: crosshair;
 }
 
 .db-pick:hover {
-	background: rgba(127, 127, 127, 0.18);
+	background: rgba(255, 255, 255, 0.16);
+	outline: 1px dashed rgba(255, 255, 255, 0.45);
+	z-index: 100;
+}
+
+/* Floating hover tooltip */
+.db-tip {
+	display: none;
+	position: absolute;
+	bottom: calc(100% + 7px);
+	left: 50%;
+	transform: translateX(-50%);
+	background: rgba(18, 20, 26, 0.94);
+	color: #f0f2f5;
+	padding: 4px 8px;
+	border-radius: 5px;
+	border: 1px solid rgba(255, 255, 255, 0.18);
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+	pointer-events: none;
+	white-space: nowrap;
+	z-index: 1000;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.db-tip-val {
+	font-size: 11.5px;
+	font-weight: 600;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	color: #38bdf8;
+}
+
+.db-tip-coord {
+	font-size: 9.5px;
+	color: #94a3b8;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.db-tip::after {
+	content: "";
+	position: absolute;
+	top: 100%;
+	left: 50%;
+	transform: translateX(-50%);
+	border-width: 5px 5px 0 5px;
+	border-style: solid;
+	border-color: rgba(18, 20, 26, 0.94) transparent transparent transparent;
+}
+
+.db-pick:hover .db-tip {
+	display: flex;
+}
+
+/* Near top edge: show below cell */
+.db-pick.tip-down .db-tip {
+	bottom: auto;
+	top: calc(100% + 7px);
+}
+.db-pick.tip-down .db-tip::after {
+	top: auto;
+	bottom: 100%;
+	border-width: 0 5px 5px 5px;
+	border-color: transparent transparent rgba(18, 20, 26, 0.94) transparent;
+}
+
+/* Near left edge */
+.db-pick.tip-left .db-tip {
+	left: 0;
+	transform: none;
+}
+.db-pick.tip-left .db-tip::after {
+	left: 12px;
+	transform: none;
+}
+
+/* Near right edge */
+.db-pick.tip-right .db-tip {
+	left: auto;
+	right: 0;
+	transform: none;
+}
+.db-pick.tip-right .db-tip::after {
+	left: auto;
+	right: 12px;
+	transform: none;
 }
 
 .db-series-wrap {

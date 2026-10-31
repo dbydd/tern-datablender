@@ -1,6 +1,6 @@
-# NetCDF 设计
+# DataBlender 设计
 
-这个插件显示并处理 NetCDF 网格场。`window.luau` 启动随包分发的 `tern-netcdf` 原生程序，程序通过 Tern Surface Protocol（TSP）显示界面。
+这个插件显示并处理科学数据网格场（NetCDF、HDF5、MATLAB）。`window.luau` 启动随包分发的 `tern-datablender` 原生程序，程序通过 Tern Surface Protocol（TSP）显示界面。
 
 ## 进程与线程
 
@@ -72,7 +72,7 @@ flowchart LR
 
 图像最长边限制为 1536 像素。完整数值平面保留给坐标读数和 NetCDF 导出。PNG 在内存中编码，直接通过 TSP blob 传输。Tern 负责图像显示、控件布局和编辑器绘制。
 
-TSP 的动作事件没有任意鼠标坐标，也没有滚轮或拖拽事件。每幅图覆盖一层 12×12 的透明格网，格网单元是图像的子节点；点击一格得到行列，再按网格尺寸换算成索引，写入 x / y 并请求该点沿时间维的序列。序列在左图下方画成 64 格字符条，点一格跳到对应帧。坐标输入、播放与单帧按钮仍然保留。握手只提供列数和单元格尺寸，因此界面布局使用弹性区域，图像按可用高度铺满画布。
+TSP 的动作事件没有任意鼠标坐标，也没有滚轮或拖拽事件。每幅图覆盖一层 16×16 的透明格网，格网单元是图像的子节点。悬停提示使用当前平面的采样值、单位和坐标，通过 CSS 显示。点击一格将采样点索引写入 x / y，并请求该点沿帧维的序列。提示中的坐标标明格内实际采样位置。序列在左图下方画成 64 格字符条，点一格跳到对应帧。坐标输入、播放与单帧按钮仍然保留。握手只提供列数和单元格尺寸，因此界面布局使用弹性区域，图像按可用高度铺满画布。
 
 预览请求进行时界面继续显示上一帧，完成结果直接替换，不插入占位画面。图像 blob 在上传成功后才切换，上传失败保留旧图像。
 
@@ -85,12 +85,12 @@ TSP 的动作事件没有任意鼠标坐标，也没有滚轮或拖拽事件。�
 ```
 plugin.toml
 window.luau
-bin/tern-netcdf
+bin/tern-datablender
 README.md
 DESIGN.md
 ```
 
-Windows 使用 `tern-netcdf.exe`。构建脚本在对应平台编译、签名并打包。构建环境需要 Rust、C/C++ 编译器和 CMake；运行环境只需要 Tern 与随包二进制。
+Windows 使用 `tern-datablender.exe`。构建脚本在对应平台编译、签名并打包。构建环境需要 Rust、C/C++ 编译器和 CMake；运行环境只需要 Tern 与随包二进制。
 
 ## 源码边界
 
@@ -101,6 +101,9 @@ Windows 使用 `tern-netcdf.exe`。构建脚本在对应平台编译、签名并
 | `native/src/graph.rs` | Rhai 场表达式、节点求值和数组缓存。 |
 | `native/src/kernels.rs` | Rayon 滤波、卷积、差分、梯度与向量模长。 |
 | `native/src/netcdf_io.rs` | NetCDF 元数据、平面读取、坐标解码和导出。 |
+| `native/src/hdf5_io.rs` | HDF5 数据集元数据、切片与多维张量读取。 |
+| `native/src/mat_io.rs` | MATLAB v5 与 v7.3 格式解析。 |
+| `native/src/dataset.rs` | 统一数据集分发接口。 |
 | `native/src/render.rs` | 色标、图层合成、箭头与 PNG 编码。 |
 | `native/src/python.rs` | 独立 Python 可视化代码生成引擎。 |
 | `native/src/runtime.rs` | 持久句柄、预览版本、导出队列和前后视图。 |

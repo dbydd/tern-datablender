@@ -28,7 +28,7 @@ pub struct Engine {
 }
 
 pub fn is_field(path: &str) -> bool {
-    Path::new(path).extension().and_then(|e| e.to_str()).is_some_and(|e| ["nc", "nc4", "cdf", "mat"].contains(&e.to_ascii_lowercase().as_str()))
+    Path::new(path).extension().and_then(|e| e.to_str()).is_some_and(|e| ["nc", "nc4", "cdf", "mat", "h5", "hdf5"].contains(&e.to_ascii_lowercase().as_str()))
 }
 
 impl Default for Engine {
@@ -41,7 +41,7 @@ impl Engine {
         ensure!(!project.path.trim().is_empty(), "Enter a data file path");
         cancel.check()?;
         let stamp = fs::metadata(&project.path).ok().and_then(|m| Some((m.len(), m.modified().ok()?)));
-        ensure!(is_field(&project.path), "{} is not a supported data file (.nc, .nc4, .cdf, .mat)", project.path);
+        ensure!(is_field(&project.path), "{} is not a supported data file (.nc, .nc4, .cdf, .mat, .h5, .hdf5)", project.path);
         if self.path != project.path || self.stamp != stamp {
             let dataset = Dataset::open(&project.path).with_context(|| format!("Open {}", project.path))?;
             self.dataset = Some(dataset);
@@ -53,7 +53,7 @@ impl Engine {
             self.source_cache = None;
         }
         cancel.check()?;
-        let Some(data) = &self.dataset else { anyhow::bail!("NetCDF dataset is not open") };
+        let Some(data) = &self.dataset else { anyhow::bail!("Dataset is not open") };
         {
             let variable = if project.source_variable.is_empty() {
                 data.info().variables.first().context("File contains no numeric field with two spatial dimensions")?

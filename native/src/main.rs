@@ -1,17 +1,17 @@
 use std::{path::PathBuf, sync::{Arc, atomic::AtomicU64}, time::Instant};
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use tern_netcdf::{dataset::Dataset, graph, kernels::Cancellation, model::{Project, Slice}, render, runtime::{Engine, Output}};
+use tern_datablender::{dataset::Dataset, kernels::Cancellation, model::{Project, Slice}, render, runtime::{Engine, Output}};
 
 #[derive(Parser)]
-#[command(version, about = "NetCDF fields with a composable processing pipeline inside Tern")]
+#[command(version, about = "Scientific data fields (NetCDF, HDF5, MAT) with a composable processing pipeline inside Tern")]
 struct Arguments { #[command(subcommand)] command: Command }
 
 #[derive(Subcommand)]
 enum Command {
     /// Open the interactive Tern surface.
     View { path: Option<String>, #[arg(long)] project: Option<String> },
-    /// Inspect native NetCDF metadata.
+    /// Inspect native dataset metadata.
     Inspect { path: String },
     /// Evaluate a field graph and optionally write its preview image.
     Render {
@@ -26,7 +26,7 @@ enum Command {
 
 fn main() -> Result<()> {
     match Arguments::parse().command {
-        Command::View { path, project } => tern_netcdf::ui::run(path, project),
+        Command::View { path, project } => tern_datablender::ui::run(path, project),
         Command::Inspect { path } => {
             let dataset = Dataset::open(&path)?;
             println!("{}", serde_json::to_string_pretty(dataset.info())?);
@@ -36,11 +36,11 @@ fn main() -> Result<()> {
             let started = Instant::now();
             let script = match script {
                 Some(path) => std::fs::read_to_string(&path).with_context(|| format!("Read {}", path.display()))?,
-                None => variable.map(|v| graph::default_script(&v)).unwrap_or_default(),
+                None => String::new(),
             };
-            let value: serde_json::Value = serde_json::from_str(&slice).context("Parse --slice JSON")?;
+            let value: serde_json::Value = serde_json::from_str(&slice).context("--slice must be valid JSON")?;
             let slice = if value.get("x").is_some() || value.get("y").is_some() || value.get("indices").is_some() {
-                serde_json::from_value::<Slice>(value)?
+                serde_json::from_value(value)?
             } else { Slice { indices: serde_json::from_value(value)?, ..Slice::default() } };
             let point = match point {
                 Some(text) => {
@@ -49,14 +49,21 @@ fn main() -> Result<()> {
                 },
                 None => None,
             };
-            let project = Project { path, script, slice, point, ..Project::default() };
+            let project = Project {
+                path,
+                source_variable: variable.unwrap_or_default(),
+                script,
+                slice,
+                point,
+                ..Project::default()
+            };
             let cancel = Cancellation::new(Arc::new(AtomicU64::new(1)), 1);
             let mut engine = Engine::default();
             let output = engine.compute(&project, None, &cancel)?;
-            let Output::Field { rendered, slice, series, .. } = output else { anyhow::bail!("render requires a NetCDF file"); };
+            let Output::Field { rendered, slice, series, .. } = output else { anyhow::bail!("render requires a valid field data file"); };
             if let Some(path) = &out {
                 if path.to_ascii_lowercase().ends_with(".nc") || path.to_ascii_lowercase().ends_with(".nc4") {
-                    tern_netcdf::netcdf_io::write_grid(path, &rendered.grid)?;
+                    tern_datablender::netcdf_io::write_grid(path, &rendered.grid)?;
                 } else { render::write_png(path, &rendered)?; }
             }
             println!("{}", serde_json::to_string_pretty(&serde_json::json!({

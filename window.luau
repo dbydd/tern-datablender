@@ -1,6 +1,6 @@
 --!strict
 
-local field_extensions = { nc = true, nc4 = true, cdf = true, mat = true }
+local field_extensions = { nc = true, nc4 = true, cdf = true, mat = true, h5 = true, hdf5 = true }
 
 local function quote(text: string): string
     return "'" .. text:gsub("'", "'\\''") .. "'"
@@ -33,16 +33,19 @@ end
 
 local function launch(cx: any, path: string?, project: string?, how: string?): boolean
     if cx.hosts:current().kind ~= "local" then
-        cx:toast("error", "NetCDF opens files on the local host")
+        cx:toast("error", "DataBlender opens files on the local host")
         return false
     end
     local suffix = if tern.runtime.os == "windows" then ".exe" else ""
-    local binary = tern.plugin.dir .. "/bin/tern-netcdf" .. suffix
+    local binary = tern.plugin.dir .. "/bin/tern-datablender" .. suffix
     if not tern.fs.exists(binary) then
-        binary = tern.plugin.dir .. "/target/release/tern-netcdf" .. suffix
+        binary = tern.plugin.dir .. "/target/release/tern-datablender" .. suffix
     end
     if not tern.fs.exists(binary) then
-        cx:toast("error", "NetCDF binary is missing", "Install the release package for this platform, or build the source checkout.")
+        binary = tern.plugin.dir .. "/target/debug/tern-datablender" .. suffix
+    end
+    if not tern.fs.exists(binary) then
+        cx:toast("error", "DataBlender binary is missing", "Install the release package for this platform, or build the source checkout.")
         return false
     end
     if not project then
@@ -60,7 +63,7 @@ local function launch(cx: any, path: string?, project: string?, how: string?): b
         pane = cx.layout:new_tab(spec)
     end
     if not pane then
-        cx:toast("error", "NetCDF could not open a pane")
+        cx:toast("error", "DataBlender could not open a pane")
         return false
     end
     tern.kv.set("last_project", project)
@@ -72,9 +75,9 @@ local function extension(path: string): string
 end
 
 tern.command({
-    id = "open", title = "NetCDF: Open data file", icon = "file",
+    id = "open", title = "DataBlender: Open data file", icon = "file",
     run = function(cx: any)
-        cx:prompt({ placeholder = "NetCDF / MAT path (.nc, .nc4, .cdf, .mat)" }):next(function(path: string?, err: string?, fresh: any)
+        cx:prompt({ placeholder = "Data path (.nc, .nc4, .cdf, .mat, .h5, .hdf5)" }):next(function(path: string?, err: string?, fresh: any)
             if err then fresh:toast("error", err) return end
             if path and path ~= "" then launch(fresh, path, nil, "tab") end
         end)
@@ -82,12 +85,12 @@ tern.command({
 })
 
 tern.command({
-    id = "new", title = "NetCDF: New workspace", icon = "file",
+    id = "new", title = "DataBlender: New workspace", icon = "file",
     run = function(cx: any) launch(cx, nil, nil, "tab") end,
 })
 
 tern.command({
-    id = "resume", title = "NetCDF: Resume last project", icon = "file",
+    id = "resume", title = "DataBlender: Resume last project", icon = "file",
     available = function(_cx: any) return tern.kv.get("last_project") ~= nil end,
     run = function(cx: any)
         local project = tern.kv.get("last_project")

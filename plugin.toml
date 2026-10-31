@@ -1,7 +1,7 @@
 schema = 1
-id = "tern-netcdf"
-name = "NetCDF"
-version = "0.4.0"
-description = "原生 NetCDF 场查看、节点图组合处理与多变量混合混合图层。"
+id = "tern-datablender"
+name = "DataBlender"
+version = "0.5.0"
+description = "原生科学数据场查看、节点图组合处理与多变量混合图层（支持 NetCDF、HDF5、MAT）。"
 icon = "file"
 window = "window.luau"

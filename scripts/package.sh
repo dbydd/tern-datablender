@@ -3,8 +3,8 @@
 # distributable that Tern can install as a plain plugin directory.
 set -euo pipefail
 
-package_name=tern-netcdf
-bin_name=tern-netcdf
+package_name=tern-datablender
+bin_name=tern-datablender
 
 die() {
     printf 'error: %s\n' "$1" >&2

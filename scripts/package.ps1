@@ -7,8 +7,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$PackageName = 'tern-netcdf'
-$BinName = 'tern-netcdf'
+$PackageName = 'tern-datablender'
+$BinName = 'tern-datablender'
 
 if (-not $PSBoundParameters.ContainsKey('Jobs') -and $env:JOBS) {
     $Jobs = [int]$env:JOBS

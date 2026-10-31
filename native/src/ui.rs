@@ -1,7 +1,6 @@
 //! The Tern screen surface: source variables on the far left, the source
 //! field and the pipeline result side by side, result variables on the far
 //! right, and the operation tree over the script pipeline underneath.
-//! This surface is NetCDF only.
 //!
 //! All data work happens on the worker thread. This file owns input, project
 //! state and views; it never opens a dataset or evaluates a graph.
@@ -36,7 +35,7 @@ const POLL: Duration = Duration::from_millis(120);
 /// Run the interactive surface. Outside Tern it prints the usage and keys.
 pub fn run(path: Option<String>, project_path: Option<String>) -> Result<()> {
     let options = Options::new()
-        .app("tern-netcdf")
+        .app("tern-datablender")
         .version(env!("CARGO_PKG_VERSION"))
         .feature(feature::EDIT)
         .feature(feature::UNDO)
@@ -47,8 +46,8 @@ pub fn run(path: Option<String>, project_path: Option<String>) -> Result<()> {
     };
     let sf = session.open(
         SurfaceOptions::screen()
-            .title("NetCDF")
-            .role("netcdf"),
+            .title("DataBlender")
+            .role("datablender"),
     )?;
     session.stylesheet(sf, "main", Some(CSS))?;
 
@@ -61,8 +60,8 @@ pub fn run(path: Option<String>, project_path: Option<String>) -> Result<()> {
 }
 
 fn usage() {
-    println!("NetCDF: a Tern screen surface for NetCDF fields.");
-    println!("usage: tern-netcdf view [FILE.nc] [--project PATH]");
+    println!("DataBlender: a Tern screen surface for scientific fields (NetCDF, HDF5, MAT).");
+    println!("usage: tern-datablender view [FILE] [--project PATH]");
     println!();
     println!("keys");
     println!("  Ctrl+Enter  run the pipeline from any focus");
@@ -105,7 +104,7 @@ impl Kind {
     fn label(self) -> &'static str {
         match self {
             Self::Unknown => "no source",
-            Self::Field => "NetCDF field",
+            Self::Field => "Data field",
         }
     }
 }
@@ -438,7 +437,7 @@ impl App {
             newest_data_gen: 0,
             export_pending: None,
             last_ms: 0.0,
-            status: Notice::ok("Open a NetCDF file or type its path."),
+            status: Notice::ok("Open a data file (.nc, .h5, .mat) or type its path."),
             focused: None,
             focused_id: None,
             needs_render: true,
@@ -1018,7 +1017,7 @@ impl App {
         self.dirty = false;
         self.dirty_at = None;
         if self.kind != Kind::Field || self.project.path.trim().is_empty() {
-            self.status = Notice::err("Open a NetCDF file first.");
+            self.status = Notice::err("Open a data file first.");
             self.needs_render = true;
             return;
         }
@@ -1145,7 +1144,7 @@ impl App {
         let path = path.trim().to_owned();
         if !is_field(&path) {
             self.status =
-                Notice::err("This surface opens NetCDF files.");
+                Notice::err("This surface opens data files (.nc, .nc4, .cdf, .mat, .h5, .hdf5).");
             self.needs_render = true;
             return;
         }
@@ -1192,7 +1191,7 @@ impl App {
     fn default_dest(&self, ext: &str) -> String {
         let path = self.project.path.trim();
         if path.is_empty() {
-            return format!("netcdf.{ext}");
+            return format!("datablender.{ext}");
         }
         Path::new(path)
             .with_extension(ext)
@@ -1226,7 +1225,7 @@ impl App {
             return;
         }
         if self.kind != Kind::Field || self.project.path.trim().is_empty() {
-            self.status = Notice::err("Open a NetCDF file first.");
+            self.status = Notice::err("Open a data file first.");
             return;
         }
         self.project.script = self.script.text.clone();
@@ -1331,9 +1330,9 @@ impl App {
             self.submit_now();
         } else if !self.project.path.trim().is_empty() {
             self.status =
-                Notice::err("This surface opens NetCDF files.");
+                Notice::err("This surface opens data files (.nc, .nc4, .cdf, .mat, .h5, .hdf5).");
         } else {
-            self.status = Notice::ok("Loaded project; enter a NetCDF path.");
+            self.status = Notice::ok("Loaded project; enter a data path.");
         }
         self.needs_render = true;
         Ok(())
@@ -1744,13 +1743,13 @@ impl App {
     }
 
     fn header(&self) -> Node<Msg> {
-        let open = self.field_input(&self.open_field, "open", "Data path (.nc, .nc4, .cdf, .mat)", true);
+        let open = self.field_input(&self.open_field, "open", "Data path (.nc, .nc4, .cdf, .mat, .h5, .hdf5)", true);
         let project = self.field_input(&self.project_field, "project", "Project JSON path", true);
         html::div::<Msg>()
             .class("db-head")
             .child(
                 div("db-row")
-                    .child(div("db-brand").child(ui::text::<Msg>("NetCDF")))
+                    .child(div("db-brand").child(ui::text::<Msg>("DataBlender")))
                     .child(open)
                     .child(btn("Open", "open", None, "db-btn primary"))
                     .child(btn("Run ^Enter", "run", None, "db-btn primary")),
@@ -1778,7 +1777,7 @@ impl App {
     fn empty_body(&self) -> Node<Msg> {
         let mut panel = div("db-panel")
             .child(div("db-panel-h").child(ui::text::<Msg>("Start")))
-            .child(hint("Type a data path (`.nc`, `.nc4`, `.cdf`, `.mat`) above and press Open."))
+            .child(hint("Type a data path (`.nc`, `.nc4`, `.cdf`, `.mat`, `.h5`, `.hdf5`) above and press Open."))
             .child(hint("Project JSON is optional. When a --project path was supplied, the first successful result is saved there."));
         if !self.project_field.text.trim().is_empty() {
             panel = panel.child(hint(format!("Project: {}", self.project_field.text)));
@@ -1832,7 +1831,7 @@ impl App {
             }
         }
         let list: Node<Msg> = if items.is_empty() {
-            hint("Open a NetCDF or MAT file to list its numeric variables.")
+            hint("Open a NetCDF, HDF5, or MAT file to list its numeric variables.")
         } else {
             div("db-side-list").children(items).into()
         };
@@ -1892,20 +1891,65 @@ impl App {
             .into()
     }
 
-    /// A 12 x 12 lattice over the picture: Tern gives pointer clicks to image
-    /// children, so a cell names a grid position without any coordinates.
+    /// A 16 x 16 lattice over the picture: provides instant hover value tooltips
+    /// and click-to-probe actions for reading time series and coordinates.
     fn pick_lattice(&self, side: Side) -> Node<Msg> {
+        const ROWS: usize = 16;
+        const COLS: usize = 16;
         let mut grid = div("db-picks");
         let Some(pane) = self.pane(side) else {
             return grid.into();
         };
         let (width, height) = (pane.rendered.grid.width, pane.rendered.grid.height);
-        for row in 0..12usize {
-            for col in 0..12usize {
-                let x = (col * width + width / 24) / 12;
-                let y = (row * height + height / 24) / 12;
+        if width == 0 || height == 0 {
+            return grid.into();
+        }
+        for row in 0..ROWS {
+            for col in 0..COLS {
+                let x = ((col * width + width / (COLS * 2)) / COLS).min(width.saturating_sub(1));
+                let y = ((row * height + height / (ROWS * 2)) / ROWS).min(height.saturating_sub(1));
                 let value = format!("{}:{x}:{y}", side.key());
-                grid = grid.child(clickable(html::el::<Msg>("div").class("db-pick"), "pick", Some(&value)));
+
+                let val = pane.rendered.grid.values.get(y * width + x).copied();
+                let xc = pane.rendered.x.values.get(x).copied();
+                let yc = pane.rendered.y.values.get(y).copied();
+                let x_name = &pane.rendered.x.name;
+                let y_name = &pane.rendered.y.name;
+                let units = &pane.rendered.units;
+
+                let (coord_text, val_text) = match val {
+                    Some(v) => {
+                        let coord = match (xc, yc) {
+                            (Some(cx), Some(cy))
+                                if !x_name.is_empty()
+                                    && !y_name.is_empty()
+                                    && (cx != x as f64 || cy != y as f64) =>
+                            {
+                                format!("({x}, {y}) · {x_name}: {}, {y_name}: {}", fmt_f64(cx), fmt_f64(cy))
+                            }
+                            _ => format!("x: {x}, y: {y}"),
+                        };
+                        let unit_str = if units.is_empty() { String::new() } else { format!(" {units}") };
+                        (coord, format!("{}{unit_str}", fmt_f32(v)))
+                    }
+                    None => (format!("x: {x}, y: {y}"), "No value".to_string()),
+                };
+
+                let mut cell_class = String::from("db-pick");
+                if row < 3 { cell_class.push_str(" tip-down"); }
+                if col < 3 { cell_class.push_str(" tip-left"); }
+                else if col >= COLS - 3 { cell_class.push_str(" tip-right"); }
+
+                let title_attr = format!("{val_text} at {coord_text}");
+                let tip_box = div("db-tip")
+                    .child(html::span::<Msg>(&val_text).class("db-tip-val"))
+                    .child(html::span::<Msg>(&coord_text).class("db-tip-coord"));
+
+                let cell = html::el::<Msg>("div")
+                    .class(&cell_class)
+                    .title(&title_attr)
+                    .child(tip_box);
+                grid = grid.child(clickable(cell, "pick", Some(&value)));
             }
         }
         grid.into()
